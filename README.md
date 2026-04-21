@@ -19,4 +19,10 @@ CENÁRIO/MAPA E LEVEL DESIGN: em sua estrutura técnica, o mapa é interpretado 
 2: mesa de estudo -bloqueio de movimento, mas permite a passagem de luz da lanterna-;
 3: ponto de spaw -onde o avatar começam-;
 4: saída -só se torna ativa após coletar os itens-. 
-Na distribuição de itens, as folhas de papel são objetos do tipo sprite posicionados em coordenadas (x, y) que coincidem com os centros dos tiles do tipo 0. inicialmente, os locais são fixos para garantir que o nível seja "vencível" e equilibrado
+Na distribuição de itens, as folhas de papel são objetos do tipo sprite posicionados em coordenadas (x, y) que coincidem com os centros dos tiles do tipo 0. inicialmente, os locais são fixos para garantir que o nível seja "vencível" e equilibrado.
+
+SISTEMA DE PONTUAÇÃO: o sistema de pontuação é gerenciado por uma variável de global ou um atributo de classe. Os pontos são acumulados durante a partida e exibidos em tempo real na interface (HUD). 
+*Item "folha de trabalho": +100 pontos por unidades;
+*Conclusão da missão (fuga): +300 pontos
+
+SISTEMA DE VIDA E DANO: na estrutura visual dos cadernos, em vez de um número genérico, a vida é representada por 
