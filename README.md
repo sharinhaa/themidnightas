@@ -25,4 +25,25 @@ SISTEMA DE PONTUAÇÃO: o sistema de pontuação é gerenciado por uma variável
 *Item "folha de trabalho": +100 pontos por unidades;
 *Conclusão da missão (fuga): +300 pontos
 
-SISTEMA DE VIDA E DANO: na estrutura visual dos cadernos, em vez de um número genérico, a vida é representada por 
+SISTEMA DE VIDA E DANO: na estrutura visual dos cadernos, em vez de um número genérico, a vida é representada por ícones de cadernos no canto superior da tela. As vidas iniciais serão de três cadernos, sendo assim, cada vez que o jogador for pego, um caderno se fecha ou "rasga". 
+
+CONTROLES E ENTREDAS DE SISTEMA: o jogo utiliza um sistema de entrada híbrido para garantr acessibilidade e conforto
+-Setas ou WASD- movimentação cardeal durante a exploção 
+-R- reiniciar partida; tela de game over ou pausa
+-Q ou ESC- sair do jogo/voltar para o menu ou gameplay
+-Espaço/Enter- confirmar seleção para menus ou seleção de personagens 
+
+FLUXO DE JOGO (GAME LOOP & ESTADOS): o jogo é estruturado em um loop contínuo que processa entradas, atualiza a lógica e renderiza imagens, passando pelas seguites fases:
+
+1. Inicialização e Menu (start state)
+na abertura, temos a exibição do título animado (efeito de "glitch"); na interação, se tem a instrução "pressione qualquer tecla" ou botões "inicar" e "sair"; na seleção, têm-se a transição para a tela de escolha entre os avatares (Carlos Eugênio e Romerito).
+2. Loop de Ação (play state)
+na entrada, o jogador inicia na recepção da biblioteca; na exploração; a navegação furtiva entre as estantes, possuindo o radar de folhas (se implementando) indica a proximidade dos itens; por fim, na tensão escalonada, a cada folha coletada, a música do jogo ganha uma camada extra de percussão, aumentando o suspense.
+3. Sistema de Verificação (check state)
+no contador, o código verifica a cada frame; ao atingir o objetivo, um som de "porta destrancando" toca e uma seta indicadora aparece sutilmente apontando para a saída.
+4. Conclusão (end state)
+VITÓRIA - se o jogador tocar o portal de saída após o check; exibe pontuação e nota final.
+DERROTA - se as vidas chegarem a zero; exibe a tela de "expulso".
+
+REGRAS DO JOGO E MACÂNICAS DE COLISÃO
+*Colisão com o cenário (paredes e estantes) -> na mecânica estrita, o jogador possui uma hitbox ligeiramente menor que o sprite visual. Isso evita que o personagem "tranque" nos cantos ao passar por corredores estreitos. 
