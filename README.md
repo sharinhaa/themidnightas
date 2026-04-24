@@ -34,7 +34,6 @@ CONTROLES E ENTREDAS DE SISTEMA: o jogo utiliza um sistema de entrada híbrido p
 -Espaço/Enter- confirmar seleção para menus ou seleção de personagens 
 
 FLUXO DE JOGO (GAME LOOP & ESTADOS): o jogo é estruturado em um loop contínuo que processa entradas, atualiza a lógica e renderiza imagens, passando pelas seguites fases:
-
 1. Inicialização e Menu (start state)
 na abertura, temos a exibição do título animado (efeito de "glitch"); na interação, se tem a instrução "pressione qualquer tecla" ou botões "inicar" e "sair"; na seleção, têm-se a transição para a tela de escolha entre os avatares (Carlos Eugênio e Romerito).
 2. Loop de Ação (play state)
@@ -47,4 +46,11 @@ DERROTA - se as vidas chegarem a zero; exibe a tela de "expulso".
 
 REGRAS DO JOGO E MACÂNICAS DE COLISÃO
 *Colisão com o cenário (paredes e estantes) -> na mecânica estrita, o jogador possui uma hitbox ligeiramente menor que o sprite visual. Isso evita que o personagem "tranque" nos cantos ao passar por corredores estreitos. 
-*
+*Sistema de Detecção (inimigo e jogador) -> 
+
+FUNCIONALIDADES MÍNIMAS (MVP): possui foco em 3 pilares fundamentais para que o jogo seja "jogável" do ínicio ao fim
+1. Sistema de Movimentação e Colisão Reativa
+o jogador deve se mover suavemente usando o teclado; ao encostar em uma estante, o personagem deve parar imediatamente sem "tremer" ou atravessar a parede
+2. Inteligência Artificial ou Patrulha
+um único inimigo que percorre um caminho retangular simples (indo de um ponto A para B, depois de C para D).
+ 
