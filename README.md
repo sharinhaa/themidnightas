@@ -47,3 +47,4 @@ DERROTA - se as vidas chegarem a zero; exibe a tela de "expulso".
 
 REGRAS DO JOGO E MACÂNICAS DE COLISÃO
 *Colisão com o cenário (paredes e estantes) -> na mecânica estrita, o jogador possui uma hitbox ligeiramente menor que o sprite visual. Isso evita que o personagem "tranque" nos cantos ao passar por corredores estreitos. 
+*
