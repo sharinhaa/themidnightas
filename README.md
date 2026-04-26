@@ -48,9 +48,16 @@ REGRAS DO JOGO E MACÂNICAS DE COLISÃO
 *Colisão com o cenário (paredes e estantes) -> na mecânica estrita, o jogador possui uma hitbox ligeiramente menor que o sprite visual. Isso evita que o personagem "tranque" nos cantos ao passar por corredores estreitos. 
 *Sistema de Detecção (inimigo e jogador) -> 
 
+ESTRUTURA DO PROJETO (Arquitetura Python): A organização do projeto segue o princípio de moduralização; em vez de um arquivo único gigante, dividimos o código em módulos lógicos que conversam entre si. Na divisão atualizada, teremos:
+-main.py- o "maestro" do jogo. Ele indica o pygame, contém o loop principal e gerencia a transição entre telas (menu -> jogo -> game over).
+-sprites.py- contém as classes baseadas em pygame.sprites.Sprite. É aqui que reside a intelêngia dos avatares.
+-settings.py- centraliza todas as constantes. Se você quiser mudar a velocidade do jogo ou a cor das paredes, muda aqui e o projeto todo se ajusta. 
+-assets/- o repositório de mídia, organizado por tipo para facilitar o carregamento em massa. 
+
 FUNCIONALIDADES MÍNIMAS (MVP): possui foco em 3 pilares fundamentais para que o jogo seja "jogável" do ínicio ao fim
 1. Sistema de Movimentação e Colisão Reativa
 o jogador deve se mover suavemente usando o teclado; ao encostar em uma estante, o personagem deve parar imediatamente sem "tremer" ou atravessar a parede
 2. Inteligência Artificial ou Patrulha
-um único inimigo que percorre um caminho retangular simples (indo de um ponto A para B, depois de C para D).
- 
+um único inimigo que percorre um caminho retangular simples (indo de um ponto A para B, depois de C para D). Ele deve possuir uma área de detecção que represente sua lanterna.
+3. Ciclo de Coleta e Interface (HUD)
+o que deve funcionar no jogo são itens (folhas) que desaparecem ao toque do jogador (kill() no sprite) e incrementam para mudar de direção ao chegar no destino. 
