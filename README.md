@@ -74,5 +74,9 @@ semana 3: Substituir os blocos coloridos provisórios por arte real e animaçõe
 
 semana 4: Desenvolver o segredo oculto da biblioteca para enriquecer a experiência, modificando a classe ItemColetavel no arquivo sprites.py para criar um tipo especial de folha que, ao ser coletada, armazena uma string (letra pista) no inventário do jogador; Criar o sistema de verificação de sequência de botões/interações. O jogador deve interagir com as instâncias de Obstaculo na ordem correta; Abertura de sala secreta: ao validar a sequência correta das letras, o código altera a matriz MAP_DATA em tempo real, transformando uma parede de estante em piso livre, revelando o quadro do "guardião". 
 
+semana 5: Identidade visual das telas de transição, efeitos de distorção e feedback de pontuação. Melhorias na interface (UI): evoluir o efeito simples go glitch do Menu Principal, fazendo com que o texto balance horizontalmente e mude de cor aleatoriamente em intervalos curtos de tempo utilizando temporizadores. 
+
+semana 6: garantir que o jogo funcione perfeitamente e esteja pronto para entrega, realizando testes de estresse nas caixas de colisão para garantir que o jogo nunca atravesse as paredes ou fique preso fora do mapa ao agachar em corredores estreitos; Verificar o balaceamento: testar se o raio de detecção do bibliotecário não torna o jogo impossível e se as zonas de ruído funcionam adequadamente em todas as posições. 
+
 
 
