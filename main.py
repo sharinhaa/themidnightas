@@ -54,7 +54,7 @@ class Game:
                     self.walls.add(obs)
                     self.all_sprites.add(obs)
                 elif tile == 3:
-                    self.spaw_pos = (col, row)
+                    self.spawn_pos = (col, row)
                 elif tile == 4:
                     self.exit_rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
                 elif tile == 6:
@@ -70,9 +70,9 @@ class Game:
                 self.all_sprites.add(pista)
 
         #Injeção das instâncias filhas via POO
-        self.player = player(self, self.spawn_pos[0], self.spawn_pos[1])
+        self.player = Player(self, self.spawn_pos[0], self.spawn_pos[1])
         self.all_sprites.add(self.player)
-        self.librarian = Librarian(self,  6, 1)
+        self.librarian = Librarian(self,  2, 1)
         self.all_sprites.add(self.librarian)
 
     def trigger_catch(self):
@@ -81,11 +81,15 @@ class Game:
             self.state = 'GAMEOVER'
         else:
             #reseta as posições no mapa se for pego, sem perder o progesso das folhas
-            self.player.x = self.spawn_pos[0] *tilesize
-            self.player.y = self.spawn_pos[1] * tilesize
-            self.player.rect.topleft = (self.player.x, self.player.y)
-            self.player.hitbox.center = self.player.rect.center
-            self.librarian.pos = pygame.math.Vector2(6 * tilesize, 1 * tilesize)
+            self.player.x =float (self.spawn_pos[0] *tilesize)
+            self.player.y =float (self.spawn_pos[1] * tilesize)
+            self.player.hitbox.center = (int(self.player.x) + tilesize//2 , int(self.player.y) + tilesize//2)
+            self.player.rect.center = self.player.hitbox.center
+
+            self.librarian.pos = pygame.math.Vector2(2 * tilesize + tilesize//2, 1 * tilesize + tilesize//2)
+            self.librarian.rect.center = (int(self.librarian.pos.x), int(self.librarian.pos.y))
+            self.librarian.current_waypoint = 0
+
 
     def trigger_easter_egg_unlock(self):
         #modifica fisicamente a malha do jogo.
@@ -144,18 +148,26 @@ class Game:
                     elif event.key == pygame.K_ESCAPE:
                         self.state = 'MENU'
 
+                    elif self.state == 'PLAYING':
+                       if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                        self.check_bookshelf_interaction()
+                    elif event.key == pygame.K_ESCAPE:
+                        self.state = 'MENU'
+
                     elif self.state in ['GAMEOVER', 'VICTORY', 'EASTER_EGG']:
                         if event.key == pygame.K_r:
                           self.state = 'SELECT_AVATAR'
                         elif event.key in [pygame.K_ESCAPE, pygame.K_q]:
                             self.state = 'MENU'
 
-                def update(self, dt):
+    def update(self, dt):
                     if self.state == 'PLAYING':
                         self.all_sprites.update(dt)
 
                         collected = pygame.sprite.spritecollide(self.player, self.papers, True)
                         for item in collected:
+                            if self.player.hitbox.colliderect(item.rect):
+                                item.kill()
                             if not item.is_easter_egg:
                              self.papers_collected += 1
                              self.score += 100
@@ -169,11 +181,11 @@ class Game:
                                 self.score += 300
                                 self.state = 'VICTORY'
 
-                def draw_hud(self):
+    def draw_hud(self):
                     txt = f"PONTOS: {self.score:04d}   FOLHAS: {self.papers_collected}/{self.total_papers_needed}"
                     self.screen.blit(self.font_hud.render(txt, True, white), (20, 15)) 
 
-                    distancia_minima = 9999
+                    distancia_minima = 9999.0
                     for paper in self.papers:
                         d = pygame.math.Vector2(self.player.rect.center).distance_to(paper.rect.center)
                         if d < distancia_minima: distancia_minima = d
@@ -183,7 +195,7 @@ class Game:
                     if distancia_minima < 80:      radar_label = "RADAR: PROXIMIDADE CRÍTICA"; radar_color = red
                     elif distancia_minima < 160:    radar_label = "RADAR: DETECTANDO SINAL"; radar_color = yellow 
 
-                    self.screen.blit(self.font.hud.render(radar_label, True, radar_color), (410, 15))
+                    self.screen.blit(self.font_hud.render(radar_label, True, radar_color), (410, 15))
 
 
                  #renderização do sistema de vida visual 
@@ -199,7 +211,7 @@ class Game:
                     if self.exit_unlocked and self.exit_rect:
                         pygame.draw.rect(self.screen, blue, self.exit_rect)  #exibe saída iluminada
 
-                def draw(self):
+    def draw(self):
                     self.screen.fill(black)
 
                     if self.state == 'MENU':
@@ -233,7 +245,7 @@ class Game:
                         pygame.draw.circle(self.screen, purple, (width//2, 260), 60)
                         pygame.draw.rect(self.screen, white, (width//2 - 30, 230, 60, 60))
 
-                        self.screen.blit(self.font_hud.render("Carlos Eugênio", True, white)),
+                        self.screen.blit(self.font_hud.render("Carlos Eugênio", True, white), (50, 50)),
                         self.screen.blit(self.font_hud.render("Especialidade: camuflagem e movimentação em sombras", True, light_gray), (width//2 - 215, 455))
                         self.screen.blit(self.font_hud.render("Agachar (LSHIFT) silencia passos em pisos barulhentos", True, light_gray), (width//2 - 225, 485))
 
@@ -242,7 +254,7 @@ class Game:
 
                     elif self.state == 'PLAYING':
                         self.background_tiles.draw(self.screen)
-                        self.librarian.draw_vision_cone(self.screen)
+                        #self.librarian.draw_vision_cone(self.screen)
                         self.all_sprites.draw(self.screen)
                         self.draw_hud()
 
@@ -270,21 +282,13 @@ class Game:
                     
                     pygame.display.flip()
 
-                def run(self):
+    def run(self):
                     while True:
                        dt = self.clock.tick(fps)  / 1000.0
                        self.handle_events()
                        self.update(dt)
                        self.draw()
 
-            if __name__ == '__main__':
-                game = Game()
-                game.run()
-
-
-
-                    
-
-
-
-            
+if __name__ == '__main__':
+   game = Game()
+   game.run()
