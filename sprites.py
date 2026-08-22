@@ -31,11 +31,9 @@ class Player(Entidade):
         self.vx, self.vy = 0, 0
         self.is_crouching = False
         
-        # Desenha o Carlos Eugênio
         pygame.draw.circle(self.image, purple, (tilesize//2, tilesize//2), tilesize//2 - 2)
         pygame.draw.rect(self.image, white, (tilesize//4, tilesize//4, tilesize//2, tilesize//2))
 
-        # Hitbox interna menor e centralizada para evitar prender nas quinas das paredes
         self.hitbox = pygame.Rect(0, 0, tilesize - 12, tilesize - 12)
         self.hitbox.center = self.rect.center
 
@@ -45,7 +43,7 @@ class Player(Entidade):
         
         if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
             self.is_crouching = True
-            speed =player_speed_crouch
+            speed = player_speed_crouch
         else:
             self.is_crouching = False
             speed = player_speed_base
@@ -55,42 +53,31 @@ class Player(Entidade):
         if keys[pygame.K_UP] or keys[pygame.K_w]:    self.vy = -speed
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:  self.vy = speed
 
-        # Normalização vetorial
         if self.vx != 0 and self.vy != 0:
             self.vx *= 0.7071
             self.vy *= 0.7071
 
     def move_and_collide(self, dt):
-        """Movimentação robusta com verificação independente por eixo."""
-        # --- EIXO X ---
         self.x += self.vx * dt
         self.hitbox.centerx = int(self.x) + tilesize // 2
         
-        # Checa colisão apenas no eixo X
         for wall in self.game.walls:
             if self.hitbox.colliderect(wall.rect):
-                if self.vx > 0: # Movendo para a direita, bateu na esquerda da parede
-                    self.hitbox.right = wall.rect.left
-                elif self.vx < 0: # Movendo para a esquerda, bateu na direita da parede
-                    self.hitbox.left = wall.rect.right
+                if self.vx > 0: self.hitbox.right = wall.rect.left
+                elif self.vx < 0: self.hitbox.left = wall.rect.right
                 self.x = self.hitbox.centerx - tilesize // 2
                 self.vx = 0
 
-        # --- EIXO Y ---
         self.y += self.vy * dt
         self.hitbox.centery = int(self.y) + tilesize // 2
         
-        # Checa colisão apenas no eixo Y
         for wall in self.game.walls:
             if self.hitbox.colliderect(wall.rect):
-                if self.vy > 0: # Movendo para baixo, bateu no topo da parede
-                    self.hitbox.bottom = wall.rect.top
-                elif self.vy < 0: # Movendo para cima, bateu na base da parede
-                    self.hitbox.top = wall.rect.bottom
+                if self.vy > 0: self.hitbox.bottom = wall.rect.top
+                elif self.vy < 0: self.hitbox.top = wall.rect.bottom
                 self.y = self.hitbox.centery - tilesize // 2
                 self.vy = 0
 
-        # Sincroniza a posição visual final do sprite
         self.rect.center = self.hitbox.center
 
     def update(self, dt):
@@ -99,80 +86,73 @@ class Player(Entidade):
 
 
 class Librarian(Entidade):
-    """Inimigo: Patrulha robusta com prevenção real de colisão física."""
+    """Inimigo: Nasce distante e patrulha corredores limpos do mapa."""
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
+        
         pygame.draw.circle(self.image, red, (tilesize//2, tilesize//2), tilesize//2 - 2)
         pygame.draw.circle(self.image, black, (tilesize//2, tilesize//2), tilesize//5)
-        
-        # Waypoints reais baseados em pixels centrais
-        self.waypoints = [
-            pygame.math.Vector2(2 * tilesize + tilesize//2, 1 * tilesize + tilesize//2),
-            pygame.math.Vector2(18 * tilesize + tilesize//2, 1 * tilesize + tilesize//2),
-            pygame.math.Vector2(18 * tilesize + tilesize//2, 10 * tilesize + tilesize//2),
-            pygame.math.Vector2(2 * tilesize + tilesize//2, 10 * tilesize + tilesize//2),
+
+        self.hitbox = pygame.Rect(0, 0, tilesize - 14, tilesize - 14)
+
+        # Waypoints configurados sob medida para os corredores abertos do seu map_data
+        grid_waypoints = [
+            (17, 10), # Ponto inicial (Perto da saída)
+            (1, 10),  # Corredor inferior esquerdo
+            (1, 4),   # Subida pelo lado esquerdo
+            (18, 4),  # Corredor central totalmente limpo
+            (18, 10)  # Retorno ao canto inferior direito
         ]
+
+        self.waypoints = [
+            pygame.math.Vector2(col * tilesize + tilesize//2, row * tilesize + tilesize//2)
+            for col, row in grid_waypoints
+        ]
+
         self.current_waypoint = 0
-        self.pos = pygame.math.Vector2(self.rect.center)
+        self.pos = pygame.math.Vector2(x * tilesize + tilesize//2, y * tilesize + tilesize//2)
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
+        self.hitbox.center = self.rect.center
         self.facing_angle = 0.0
 
     def update(self, dt):
         target = self.waypoints[self.current_waypoint]
         direction = target - self.pos
         dist = direction.length()
-        
-        if dist > 5:
-            direction = direction.normalize()
-            self.facing_angle = math.atan2(-direction.y, direction.x)
-            
-            # Movimentação passo a passo do Bibliotecário com checagem de colisão real
-            step_move = direction * librarian_speed * dt
-            
-            # Testa colisão no eixo X do Inimigo
-            self.pos.x += step_move.x
-            self.rect.centerx = int(self.pos.x)
-            for wall in self.game.walls:
-                if self.rect.colliderect(wall.rect):
-                    if step_move.x > 0: self.rect.right = wall.rect.left
-                    elif step_move.x < 0: self.rect.left = wall.rect.right
-                    self.pos.x = self.rect.centerx
 
-            # Testa colisão no eixo Y do Inimigo (Impede que ele atravesse estantes)
-            self.pos.y += step_move.y
-            self.rect.centery = int(self.pos.y)
-            for wall in self.game.walls:
-                if self.rect.colliderect(wall.rect):
-                    if step_move.y > 0: self.rect.bottom = wall.rect.top
-                    elif step_move.y < 0: self.rect.top = wall.rect.bottom
-                    self.pos.y = self.rect.centery
-        else:
-            # Passa para o próximo ponto de patrulha ao chegar perto
+        if dist < 8:
             self.current_waypoint = (self.current_waypoint + 1) % len(self.waypoints)
+            return
+
+        direction = direction.normalize()
+        self.facing_angle = math.atan2(-direction.y, direction.x)
+        
+        step = direction * librarian_speed * dt
+        self.pos += step
+
+        self.rect.center = (int(self.pos.x), int(self.pos.y))
+        self.hitbox.center = self.rect.center
 
         self.check_player_detection()
 
     def check_player_detection(self):
         player = self.game.player
-        vec = pygame.math.Vector2(player.rect.center) - pygame.math.Vector2(self.rect.center)
+        vec = pygame.math.Vector2(player.hitbox.center) - pygame.math.Vector2(self.rect.center)
         distance = vec.length()
 
-        if distance < detection_radius:
-            # 1. Detecção Acústica em Piso Barulhento
-            px = int(player.rect.centerx // tilesize)
-            py = int(player.rect.centery // tilesize)
-            if 0 <= py < len(map_data) and 0 <= px < len(map_data[0]):
-                if map_data[py][px] == 5 and not player.is_crouching:
-                    self.game.trigger_catch()
-                    return
+        # Toque direto
+        if self.hitbox.colliderect(player.hitbox):
+            self.game.trigger_catch()
+            return
 
-            # 2. Detecção Visual no Cone de Visão (Raycasting)
-            if distance > 0:
-                angle_to_player = math.atan2(-vec.y, vec.x)
-                angle_diff = (angle_to_player - self.facing_angle + math.pi) % (2 * math.pi) - math.pi
-                
-                if abs(angle_diff) < math.pi / 4: # Cone de visão de 90°
-                    if self.has_line_of_sight(pygame.math.Vector2(self.rect.center), pygame.math.Vector2(player.rect.center)):
-                        self.game.trigger_catch()
+        # Raio de visão
+        if 0 < distance < detection_radius:
+            angle_to_player = math.atan2(-vec.y, vec.x)
+            angle_diff = (angle_to_player - self.facing_angle + math.pi) % (2 * math.pi) - math.pi
+            
+            if abs(angle_diff) < math.pi / 4:
+                if self.has_line_of_sight(pygame.math.Vector2(self.rect.center), pygame.math.Vector2(player.hitbox.center)):
+                    self.game.trigger_catch()
 
     def has_line_of_sight(self, start, end):
         steps = int(start.distance_to(end) / 8)
@@ -181,7 +161,7 @@ class Librarian(Entidade):
             point = start.lerp(end, i / steps)
             tx, ty = int(point.x // tilesize), int(point.y // tilesize)
             if 0 <= ty < len(map_data) and 0 <= tx < len(map_data[0]):
-                if map_data[ty][tx] == 1: # Estante obstrui totalmente a visão
+                if map_data[ty][tx] in [1, 2]: # Estantes e mesas bloqueiam a visão
                     return False
         return True
 
