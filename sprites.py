@@ -180,21 +180,43 @@ class Librarian(pygame.sprite.Sprite):
         return True
 
     def check_player_detection(self):
-        # 1. Toque físico direto
-        if self.hitbox.colliderect(self.game.player.hitbox):
+        to_player = pygame.math.Vector2(self.game.player.rect.center) - self.pos
+        dist_to_player = to_player.length()
+
+        # 1. CAPTURA POR TRÁS OU LADOS (Toque físico bem próximo)
+        if dist_to_player < 20:
             self.game.trigger_catch()
             return
 
-        # 2. Cone de Visão (Raio de 75px)
-        if self.direction.length() > 0:
-            to_player = pygame.math.Vector2(self.game.player.hitbox.center) - self.pos
-            dist_to_player = to_player.length()
+        # 2. CAPTURA PELA FRENTE (Curta distância dentro do cone de visão)
+        if self.direction.length() > 0 and dist_to_player < 35:
+            angle_to_player = self.direction.angle_to(to_player)
+            
+            # Dentro do ângulo da lanterna (-35° a +35°)
+            if -35 <= angle_to_player <= 35:
+                if self.has_line_of_sight(self.game.player.rect.center):
+                    self.game.trigger_catch()
 
-            if 0 < dist_to_player < 75:
-                angle_to_player = self.direction.angle_to(to_player)
-                if -40 <= angle_to_player <= 40:
-                    if self.has_line_of_sight(self.game.player.hitbox.center):
-                        self.game.trigger_catch()
+    def draw_vision_cone(self, surface):
+        if self.direction.length() == 0:
+            return
+
+        # Mantém a luz vermelha exatamente no alcance da imagem (75 pixels)
+        cone_length = 75
+        cone_angle = 40
+
+        base_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
+
+        p1 = self.pos
+        left_angle = math.radians(base_angle - cone_angle)
+        right_angle = math.radians(base_angle + cone_angle)
+
+        p2 = self.pos + pygame.math.Vector2(math.cos(left_angle), math.sin(left_angle)) * cone_length
+        p3 = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
+
+        cone_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.polygon(cone_surface, (255, 0, 0, 60), [p1, p2, p3])
+        surface.blit(cone_surface, (0, 0))
                         
     def draw_vision_cone(self, surface):
         if self.direction.length() == 0:
