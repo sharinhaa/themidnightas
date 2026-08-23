@@ -3,6 +3,7 @@ import pygame
 import math
 import random
 from config import *
+from collections import deque
 
 class Entidade(pygame.sprite.Sprite):
     """Classe base para objetos móveis."""
@@ -97,8 +98,13 @@ class Librarian(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.reset_to_grid(x, y)
         
-        self.speed = 110  # Velocidade levemente ajustada
-        self.direction = pygame.math.Vector2(0, 0)
+        self.speed = 110
+        self.chase_speed = 130
+        self.direction = pygame.math.Vector2(1, 0)
+        self.radar_range = 240.0
+        self.is_chasing = False
+        self.chase_target_grid = None
+        self.path = []
         self.choose_next_cell()
 
     def reset_to_grid(self, x, y):
@@ -113,14 +119,15 @@ class Librarian(pygame.sprite.Sprite):
         self.target_grid = (self.grid_x, self.grid_y)
         self.target_pos = pygame.math.Vector2(self.pos)
         self.last_grid = (self.grid_x, self.grid_y)
+        self.is_chasing = False
+        self.path = []
 
     def is_walkable(self, col, row):
         if 0 <= row < len(map_data) and 0 <= col < len(map_data[0]):
             return map_data[row][col] in [0, 3, 4, 6, 7]
         return False
 
-    def get_valid_neighbors(self):
-        col, row = self.grid_x, self.grid_y
+    def get_valid_neighbors(self, col, row):
         candidates = []
         directions = [(col + 1, row), (col - 1, row), (col, row + 1), (col, row - 1)]
         
@@ -130,7 +137,7 @@ class Librarian(pygame.sprite.Sprite):
         return candidates
 
     def choose_next_cell(self):
-        neighbors = self.get_valid_neighbors()
+        neighbors = self.get_valid_neighbors(self.grid_x, self.grid_y)
         if not neighbors:
             return
 
@@ -144,34 +151,45 @@ class Librarian(pygame.sprite.Sprite):
         target_y = next_cell[1] * tilesize + tilesize // 2
         self.target_pos = pygame.math.Vector2(target_x, target_y)
 
-    def update(self, dt):
-        target_vector = self.target_pos - self.pos
-        distance = target_vector.length()
+    def find_path_bfs(self, start_grid, goal_grid):
+        """Calcula o caminho na grade até o jogador para mover sem trancar em paredes."""
+        if start_grid == goal_grid:
+            return []
 
-        if distance < 3:
-            self.pos = pygame.math.Vector2(self.target_pos)
-            self.grid_x, self.grid_y = self.target_grid
-            self.choose_next_cell()
-            target_vector = self.target_pos - self.pos
-            distance = target_vector.length()
+        queue = deque([start_grid])
+        came_from = {start_grid: None}
 
-        if distance > 0:
-            self.direction = target_vector.normalize()
-            self.pos += self.direction * self.speed * dt
-            self.rect.center = (int(self.pos.x), int(self.pos.y))
-            self.hitbox.center = self.rect.center
+        while queue:
+            current = queue.popleft()
+            if current == goal_grid:
+                break
 
-        self.check_player_detection()
+            for nxt in self.get_valid_neighbors(current[0], current[1]):
+                if nxt not in came_from:
+                    queue.append(nxt)
+                    came_from[nxt] = current
+
+        if goal_grid not in came_from:
+            return []
+
+        # Reconstrução do caminho
+        curr = goal_grid
+        path = []
+        while curr != start_grid:
+            path.append(curr)
+            curr = came_from[curr]
+        path.reverse()
+        return path
 
     def has_line_of_sight(self, target_pos):
         start = self.pos
         end = pygame.math.Vector2(target_pos)
         dist = start.distance_to(end)
-        
+
         if dist == 0:
             return True
 
-        steps = int(dist / 10)
+        steps = max(1, int(dist / 8))
         for i in range(1, steps):
             check_point = start.lerp(end, i / steps)
             for wall in self.game.walls:
@@ -179,30 +197,109 @@ class Librarian(pygame.sprite.Sprite):
                     return False
         return True
 
+    def is_player_in_cone(self, player_center):
+        to_player = pygame.math.Vector2(player_center) - self.pos
+        dist = to_player.length()
+
+        if dist > 100:
+            return False
+
+        if self.direction.length() > 0:
+            angle = self.direction.angle_to(to_player)
+            if -45 <= angle <= 45:
+                return self.has_line_of_sight(player_center)
+        return False
+
+    def update(self, dt):
+        player_center = self.game.player.rect.center
+        player_grid = (
+            int(self.game.player.hitbox.centerx // tilesize),
+            int(self.game.player.hitbox.centery // tilesize)
+        )
+        dist_to_player = self.pos.distance_to(player_center)
+        has_los = self.has_line_of_sight(player_center)
+        in_cone = self.is_player_in_cone(player_center)
+
+        # 1. Pega o jogador se estiver encostado em qualquer lado
+        self.check_player_detection()
+
+        # 2. VÊ O JOGADOR -> ATIVA MODO DE PERSEGUIÇÃO
+        if (in_cone or (has_los and dist_to_player <= self.radar_range)):
+            self.is_chasing = True
+            self.chase_target_grid = player_grid
+            self.path = self.find_path_bfs((self.grid_x, self.grid_y), player_grid)
+        elif self.is_chasing and not has_los:
+            # Perdeu a linha de visão (jogador dobrou a esquina/entrou em outro corredor)
+            if not self.path:
+                self.is_chasing = False
+                self.choose_next_cell()
+
+        # 3. MOVIMENTAÇÃO
+        current_speed = self.chase_speed if self.is_chasing else self.speed
+
+        if self.is_chasing and self.path:
+            next_step = self.path[0]
+            target_x = next_step[0] * tilesize + tilesize // 2
+            target_y = next_step[1] * tilesize + tilesize // 2
+            self.target_pos = pygame.math.Vector2(target_x, target_y)
+
+        target_vector = self.target_pos - self.pos
+        distance = target_vector.length()
+
+        if distance < 4:
+            self.pos = pygame.math.Vector2(self.target_pos)
+            self.grid_x = int(self.pos.x // tilesize)
+            self.grid_y = int(self.pos.y // tilesize)
+
+            if self.is_chasing and self.path:
+                self.path.pop(0)
+                if not self.path:
+                    # Chegou ao último ponto e não vê o jogador -> Voltar a patrulhar
+                    self.is_chasing = False
+                    self.choose_next_cell()
+            else:
+                self.choose_next_cell()
+
+            target_vector = self.target_pos - self.pos
+            distance = target_vector.length()
+
+        if distance > 0:
+            self.direction = target_vector.normalize()
+            self.pos += self.direction * current_speed * dt
+            self.rect.center = (int(self.pos.x), int(self.pos.y))
+            self.hitbox.center = self.rect.center
+
     def check_player_detection(self):
-        to_player = pygame.math.Vector2(self.game.player.rect.center) - self.pos
+        player_center = self.game.player.rect.center
+        to_player = pygame.math.Vector2(player_center) - self.pos
         dist_to_player = to_player.length()
 
-        # 1. CAPTURA POR TRÁS OU LADOS (Toque físico bem próximo)
-        if dist_to_player < 20:
+        # Pegar em 360º ao encostar
+        if dist_to_player < 22:
             self.game.trigger_catch()
-            return
 
-        # 2. CAPTURA PELA FRENTE (Curta distância dentro do cone de visão)
-        if self.direction.length() > 0 and dist_to_player < 35:
-            angle_to_player = self.direction.angle_to(to_player)
-            
-            # Dentro do ângulo da lanterna (-35° a +35°)
-            if -35 <= angle_to_player <= 35:
-                if self.has_line_of_sight(self.game.player.rect.center):
-                    self.game.trigger_catch()
+    def get_radar_status(self):
+        player_center = self.game.player.rect.center
+        dist = self.pos.distance_to(player_center)
+
+        if dist > self.radar_range:
+            return "Radar: Sem sinal", light_gray, False
+
+        if not self.has_line_of_sight(player_center):
+            return "Radar: Bloqueado(Estante)", light_gray, False
+
+        if dist < 80:
+            return "Radar: Perigo Iminente!", red, True
+        elif dist < 150:
+            return "Radar: Alvo Detectado", yellow, True
+        else:
+            return "Radar: Sinal Próximo...", yellow, True
 
     def draw_vision_cone(self, surface):
         if self.direction.length() == 0:
             return
 
-        # Mantém a luz vermelha exatamente no alcance da imagem (75 pixels)
-        cone_length = 75
+        cone_length = 80
         cone_angle = 40
 
         base_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
@@ -215,27 +312,7 @@ class Librarian(pygame.sprite.Sprite):
         p3 = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
 
         cone_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-        pygame.draw.polygon(cone_surface, (255, 0, 0, 60), [p1, p2, p3])
-        surface.blit(cone_surface, (0, 0))
-                        
-    def draw_vision_cone(self, surface):
-        if self.direction.length() == 0:
-            return
-
-        cone_length = 75
-        cone_angle = 40
-
-        base_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
-
-        p1 = self.pos
-        left_angle = math.radians(base_angle - cone_angle)
-        right_angle = math.radians(base_angle + cone_angle)
-
-        p2 = self.pos + pygame.math.Vector2(math.cos(left_angle), math.sin(left_angle)) * cone_length
-        p3 = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
-
-        cone_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-        pygame.draw.polygon(cone_surface, (255, 0, 0, 60), [p1, p2, p3])
+        pygame.draw.polygon(cone_surface, (200, 0, 0, 90), [p1, p2, p3])
         surface.blit(cone_surface, (0, 0))
 
 class Obstaculo(ObjetoCenario):

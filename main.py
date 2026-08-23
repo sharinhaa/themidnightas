@@ -35,7 +35,7 @@ class Game:
         self.papers = pygame.sprite.Group()
         self.background_tiles = pygame.sprite.Group()
         self.exit_rect = None
-        self.librarian_spawn_pos = (17, 10)  # Padrão de segurança longe do jogador
+        self.librarian_spawn_pos = (17, 10)
 
         for row, tiles in enumerate(map_data):
             for col, tile in enumerate(tiles):
@@ -265,21 +265,15 @@ class Game:
                     self.state = 'VICTORY'
 
     def draw_hud(self):
+        # 1. Pontos e Folhas
         txt = f"PONTOS: {self.score:04d}   FOLHAS: {self.papers_collected}/{self.total_papers_needed}"
-        self.screen.blit(self.font_hud.render(txt, True, white), (20, 15)) 
+        self.screen.blit(self.font_hud.render(txt, True, white), (20, 15))
 
-        distancia_minima = 9999.0
-        for paper in self.papers:
-            d = pygame.math.Vector2(self.player.rect.center).distance_to(paper.rect.center)
-            if d < distancia_minima: distancia_minima = d
+        # 2. Mecânica do Radar (Status ativo via Raycasting)
+        radar_text, radar_color, em_visao = self.librarian.get_radar_status()
+        self.screen.blit(self.font_hud.render(radar_text, True, radar_color), (340, 15))
 
-        radar_label = "RADAR: SEM SINAL"
-        radar_color = light_gray
-        if distancia_minima < 80:       radar_label = "RADAR: PROXIMIDADE CRÍTICA"; radar_color = red
-        elif distancia_minima < 160:    radar_label = "RADAR: DETECTANDO SINAL"; radar_color = yellow 
-
-        self.screen.blit(self.font_hud.render(radar_label, True, radar_color), (410, 15))
-
+        # 3. Vidas
         for i in range(3):
             cad_rect = pygame.Rect(width - 120 + (i * 30), 14, 18, 22)
             if i < self.lives:
