@@ -160,15 +160,20 @@ class Game:
                     elif event.key in [pygame.K_ESCAPE, pygame.K_q]:
                         self.state = 'MENU'
 
+                # --- CORREÇÃO DO EASTER EGG ---
                 elif self.state == 'EASTER_EGG':
                     if event.key in [pygame.K_r, pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN]:
+                        # Empurra o jogador 1 tile para a esquerda para desfazer a colisão instantânea
+                        self.player.x -= tilesize
+                        self.player.hitbox.centerx = int(self.player.x) + tilesize // 2
+                        self.player.rect.center = self.player.hitbox.center
                         self.state = 'PLAYING'
 
     def update(self, dt):
         if self.state == 'PLAYING':
             self.all_sprites.update(dt)
 
-            # Coleta direta e precisa dos papéis e pistas
+            # Coleta de papéis
             collected = pygame.sprite.spritecollide(self.player, self.papers, True)
             for item in collected:
                 if not item.is_easter_egg:
@@ -179,10 +184,12 @@ class Game:
                 else:
                     self.score += 50
 
+            # Detecção do Quadro Secreto
             if hasattr(self, 'quadro_secreto'):
                 if self.player.hitbox.colliderect(self.quadro_secreto.rect):
                     self.state = "EASTER_EGG"
 
+            # Fim de Jogo (Vitória)
             if self.exit_unlocked and self.exit_rect:
                 if self.player.hitbox.colliderect(self.exit_rect):
                     self.score += 300
