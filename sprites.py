@@ -1,4 +1,3 @@
-# sprites.py
 import pygame
 import math
 import random
@@ -27,7 +26,7 @@ class ObjetoCenario(pygame.sprite.Sprite):
         self.rect.y = y * tilesize
 
 class Player(Entidade):
-    """Jogador: Carlos Eugênio com física suave de deslize pelas quinas."""
+    """Jogador: Carlos Eugênio."""
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
         self.vx, self.vy = 0, 0
@@ -36,7 +35,7 @@ class Player(Entidade):
         pygame.draw.circle(self.image, purple, (tilesize//2, tilesize//2), tilesize//2 - 2)
         pygame.draw.rect(self.image, white, (tilesize//4, tilesize//4, tilesize//2, tilesize//2))
 
-        self.hitbox = pygame.Rect(0, 0, tilesize - 12, tilesize - 12)
+        self.hitbox = pygame.Rect(0, 0, tilesize - 10, tilesize - 10)
         self.hitbox.center = self.rect.center
 
     def get_input(self):
@@ -152,7 +151,6 @@ class Librarian(pygame.sprite.Sprite):
         self.target_pos = pygame.math.Vector2(target_x, target_y)
 
     def find_path_bfs(self, start_grid, goal_grid):
-        """Calcula o caminho na grade até o jogador para mover sem trancar em paredes."""
         if start_grid == goal_grid:
             return []
 
@@ -172,7 +170,6 @@ class Librarian(pygame.sprite.Sprite):
         if goal_grid not in came_from:
             return []
 
-        # Reconstrução do caminho
         curr = goal_grid
         path = []
         while curr != start_grid:
@@ -220,21 +217,17 @@ class Librarian(pygame.sprite.Sprite):
         has_los = self.has_line_of_sight(player_center)
         in_cone = self.is_player_in_cone(player_center)
 
-        # 1. Pega o jogador se estiver encostado em qualquer lado
         self.check_player_detection()
 
-        # 2. VÊ O JOGADOR -> ATIVA MODO DE PERSEGUIÇÃO
         if (in_cone or (has_los and dist_to_player <= self.radar_range)):
             self.is_chasing = True
             self.chase_target_grid = player_grid
             self.path = self.find_path_bfs((self.grid_x, self.grid_y), player_grid)
         elif self.is_chasing and not has_los:
-            # Perdeu a linha de visão (jogador dobrou a esquina/entrou em outro corredor)
             if not self.path:
                 self.is_chasing = False
                 self.choose_next_cell()
 
-        # 3. MOVIMENTAÇÃO
         current_speed = self.chase_speed if self.is_chasing else self.speed
 
         if self.is_chasing and self.path:
@@ -254,7 +247,6 @@ class Librarian(pygame.sprite.Sprite):
             if self.is_chasing and self.path:
                 self.path.pop(0)
                 if not self.path:
-                    # Chegou ao último ponto e não vê o jogador -> Voltar a patrulhar
                     self.is_chasing = False
                     self.choose_next_cell()
             else:
@@ -274,7 +266,6 @@ class Librarian(pygame.sprite.Sprite):
         to_player = pygame.math.Vector2(player_center) - self.pos
         dist_to_player = to_player.length()
 
-        # Pegar em 360º ao encostar
         if dist_to_player < 22:
             self.game.trigger_catch()
 
@@ -304,12 +295,15 @@ class Librarian(pygame.sprite.Sprite):
 
         base_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
 
-        p1 = self.pos
+        p1 = (self.pos.x, self.pos.y)
         left_angle = math.radians(base_angle - cone_angle)
         right_angle = math.radians(base_angle + cone_angle)
 
-        p2 = self.pos + pygame.math.Vector2(math.cos(left_angle), math.sin(left_angle)) * cone_length
-        p3 = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
+        p2_vec = self.pos + pygame.math.Vector2(math.cos(left_angle), math.sin(left_angle)) * cone_length
+        p3_vec = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
+
+        p2 = (p2_vec.x, p2_vec.y)
+        p3 = (p3_vec.x, p3_vec.y)
 
         cone_surface = pygame.Surface((width, height), pygame.SRCALPHA)
         pygame.draw.polygon(cone_surface, (200, 0, 0, 90), [p1, p2, p3])
@@ -327,26 +321,41 @@ class Obstaculo(ObjetoCenario):
     def render_visual(self):
         if self.tile_type == 1:
             self.image.fill(dark_gray)
-            pygame.draw.rect(self.image, yellow, (4, 4, 6, 32))
-            pygame.draw.rect(self.image, blue, (14, 4, 6, 32))
+            pygame.draw.rect(self.image, yellow, (4, 4, 6, 24))
+            pygame.draw.rect(self.image, blue, (14, 4, 6, 24))
             if self.letter_id:
                 font = pygame.font.SysFont("Arial", 14, bold=True)
                 let_surf = font.render(self.letter_id, True, white)
-                self.image.blit(let_surf, (25, 12))
+                self.image.blit(let_surf, (22, 8))
         elif self.tile_type == 2:
             self.image.fill(light_gray)
-            pygame.draw.rect(self.image, black, (3, 3, tilesize-6, tilesize-6), 2)
-
+            pygame.draw.rect(self.image, black, (2, 2, tilesize-4, tilesize-4), 2)
 
 class ItemColetavel(ObjetoCenario):
     def __init__(self, col, row, is_easter_egg=False, letter_hint=""):
-        super().__init__(col, row, 18, 24)
+        super().__init__(col, row, 20, 24)
+        
+        # Centraliza o sprite e sua hitbox exatamente na célula
         self.rect.center = (col * tilesize + tilesize // 2, row * tilesize + tilesize // 2)
         self.is_easter_egg = is_easter_egg
         self.letter_hint = letter_hint
-        
+
         self.image.fill(white)
-        pygame.draw.rect(self.image, black, (0, 0, 18, 24), 1)
-        cor_linha = red if is_easter_egg else blue
-        pygame.draw.line(self.image, cor_linha, (3, 6), (15, 6), 1)
-        pygame.draw.line(self.image, cor_linha, (3, 14), (12, 14), 1)
+        pygame.draw.rect(self.image, black, (0, 0, 20, 24), 1)
+
+        if is_easter_egg:
+            pygame.draw.rect(self.image, yellow, (0, 0, 20, 24), 2)
+            font = pygame.font.SysFont("Arial", 13, bold=True)
+            letra_surf = font.render(self.letter_hint, True, red)
+            self.image.blit(letra_surf, (5, 3))
+        else:
+            pygame.draw.line(self.image, blue, (3, 6), (17, 6), 1)
+            pygame.draw.line(self.image, blue, (3, 14), (14, 14), 1)
+
+class QuadroSecreto(ObjetoCenario):
+    def __init__(self, col, row):
+        super().__init__(col, row, tilesize, tilesize)
+        self.image.fill(yellow)
+        pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 3)
+        pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
+        pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
