@@ -1,6 +1,7 @@
 # sprites.py
 import pygame
 import math
+import random
 from config import *
 
 class Entidade(pygame.sprite.Sprite):
@@ -85,96 +86,135 @@ class Player(Entidade):
         self.move_and_collide(dt)
 
 
-class Librarian(Entidade):
-    """Inimigo: Nasce distante e patrulha corredores limpos do mapa."""
+class Librarian(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
-        super().__init__(game, x, y)
+        super().__init__()
+        self.game = game
         
-        pygame.draw.circle(self.image, red, (tilesize//2, tilesize//2), tilesize//2 - 2)
-        pygame.draw.circle(self.image, black, (tilesize//2, tilesize//2), tilesize//5)
+        self.image = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, (200, 30, 30), (tilesize // 2, tilesize // 2), tilesize // 2 - 2)
+        
+        self.rect = self.image.get_rect()
+        self.reset_to_grid(x, y)
+        
+        self.speed = 110  # Velocidade levemente ajustada
+        self.direction = pygame.math.Vector2(0, 0)
+        self.choose_next_cell()
 
-        self.hitbox = pygame.Rect(0, 0, tilesize - 14, tilesize - 14)
+    def reset_to_grid(self, x, y):
+        self.grid_x = int(x)
+        self.grid_y = int(y)
+        self.pos = pygame.math.Vector2(
+            self.grid_x * tilesize + tilesize // 2, 
+            self.grid_y * tilesize + tilesize // 2
+        )
+        self.rect = self.image.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+        self.hitbox = self.rect.inflate(-8, -8)
+        self.target_grid = (self.grid_x, self.grid_y)
+        self.target_pos = pygame.math.Vector2(self.pos)
+        self.last_grid = (self.grid_x, self.grid_y)
 
-        # Waypoints configurados sob medida para os corredores abertos do seu map_data
-        grid_waypoints = [
-            (17, 10), # Ponto inicial (Perto da saída)
-            (1, 10),  # Corredor inferior esquerdo
-            (1, 4),   # Subida pelo lado esquerdo
-            (18, 4),  # Corredor central totalmente limpo
-            (18, 10)  # Retorno ao canto inferior direito
-        ]
+    def is_walkable(self, col, row):
+        if 0 <= row < len(map_data) and 0 <= col < len(map_data[0]):
+            return map_data[row][col] in [0, 3, 4, 6, 7]
+        return False
 
-        self.waypoints = [
-            pygame.math.Vector2(col * tilesize + tilesize//2, row * tilesize + tilesize//2)
-            for col, row in grid_waypoints
-        ]
+    def get_valid_neighbors(self):
+        col, row = self.grid_x, self.grid_y
+        candidates = []
+        directions = [(col + 1, row), (col - 1, row), (col, row + 1), (col, row - 1)]
+        
+        for c, r in directions:
+            if self.is_walkable(c, r):
+                candidates.append((c, r))
+        return candidates
 
-        self.current_waypoint = 0
-        self.pos = pygame.math.Vector2(x * tilesize + tilesize//2, y * tilesize + tilesize//2)
-        self.rect.center = (int(self.pos.x), int(self.pos.y))
-        self.hitbox.center = self.rect.center
-        self.facing_angle = 0.0
-
-    def update(self, dt):
-        target = self.waypoints[self.current_waypoint]
-        direction = target - self.pos
-        dist = direction.length()
-
-        if dist < 8:
-            self.current_waypoint = (self.current_waypoint + 1) % len(self.waypoints)
+    def choose_next_cell(self):
+        neighbors = self.get_valid_neighbors()
+        if not neighbors:
             return
 
-        direction = direction.normalize()
-        self.facing_angle = math.atan2(-direction.y, direction.x)
-        
-        step = direction * librarian_speed * dt
-        self.pos += step
+        unvisited = [n for n in neighbors if n != self.last_grid]
+        next_cell = random.choice(unvisited) if unvisited else random.choice(neighbors)
 
-        self.rect.center = (int(self.pos.x), int(self.pos.y))
-        self.hitbox.center = self.rect.center
+        self.last_grid = (self.grid_x, self.grid_y)
+        self.target_grid = next_cell
+        
+        target_x = next_cell[0] * tilesize + tilesize // 2
+        target_y = next_cell[1] * tilesize + tilesize // 2
+        self.target_pos = pygame.math.Vector2(target_x, target_y)
+
+    def update(self, dt):
+        target_vector = self.target_pos - self.pos
+        distance = target_vector.length()
+
+        if distance < 3:
+            self.pos = pygame.math.Vector2(self.target_pos)
+            self.grid_x, self.grid_y = self.target_grid
+            self.choose_next_cell()
+            target_vector = self.target_pos - self.pos
+            distance = target_vector.length()
+
+        if distance > 0:
+            self.direction = target_vector.normalize()
+            self.pos += self.direction * self.speed * dt
+            self.rect.center = (int(self.pos.x), int(self.pos.y))
+            self.hitbox.center = self.rect.center
 
         self.check_player_detection()
 
-    def check_player_detection(self):
-        player = self.game.player
-        vec = pygame.math.Vector2(player.hitbox.center) - pygame.math.Vector2(self.rect.center)
-        distance = vec.length()
+    def has_line_of_sight(self, target_pos):
+        start = self.pos
+        end = pygame.math.Vector2(target_pos)
+        dist = start.distance_to(end)
+        
+        if dist == 0:
+            return True
 
-        # Toque direto
-        if self.hitbox.colliderect(player.hitbox):
-            self.game.trigger_catch()
-            return
-
-        # Raio de visão
-        if 0 < distance < detection_radius:
-            angle_to_player = math.atan2(-vec.y, vec.x)
-            angle_diff = (angle_to_player - self.facing_angle + math.pi) % (2 * math.pi) - math.pi
-            
-            if abs(angle_diff) < math.pi / 4:
-                if self.has_line_of_sight(pygame.math.Vector2(self.rect.center), pygame.math.Vector2(player.hitbox.center)):
-                    self.game.trigger_catch()
-
-    def has_line_of_sight(self, start, end):
-        steps = int(start.distance_to(end) / 8)
-        if steps == 0: return True
+        steps = int(dist / 10)
         for i in range(1, steps):
-            point = start.lerp(end, i / steps)
-            tx, ty = int(point.x // tilesize), int(point.y // tilesize)
-            if 0 <= ty < len(map_data) and 0 <= tx < len(map_data[0]):
-                if map_data[ty][tx] in [1, 2]: # Estantes e mesas bloqueiam a visão
+            check_point = start.lerp(end, i / steps)
+            for wall in self.game.walls:
+                if wall.rect.collidepoint(check_point.x, check_point.y):
                     return False
         return True
 
-    def draw_vision_cone(self, surface):
-        cone_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-        center = pygame.math.Vector2(self.rect.center)
-        
-        p1 = center + pygame.math.Vector2(math.cos(self.facing_angle - math.pi/4), -math.sin(self.facing_angle - math.pi/4)) * detection_radius
-        p2 = center + pygame.math.Vector2(math.cos(self.facing_angle + math.pi/4), -math.sin(self.facing_angle + math.pi/4)) * detection_radius
-        
-        pygame.draw.polygon(cone_surf, (250, 40, 40, 40), [center, p1, p2])
-        surface.blit(cone_surf, (0, 0))
+    def check_player_detection(self):
+        # 1. Toque físico direto
+        if self.hitbox.colliderect(self.game.player.hitbox):
+            self.game.trigger_catch()
+            return
 
+        # 2. Cone de Visão (Raio de 75px)
+        if self.direction.length() > 0:
+            to_player = pygame.math.Vector2(self.game.player.hitbox.center) - self.pos
+            dist_to_player = to_player.length()
+
+            if 0 < dist_to_player < 75:
+                angle_to_player = self.direction.angle_to(to_player)
+                if -40 <= angle_to_player <= 40:
+                    if self.has_line_of_sight(self.game.player.hitbox.center):
+                        self.game.trigger_catch()
+                        
+    def draw_vision_cone(self, surface):
+        if self.direction.length() == 0:
+            return
+
+        cone_length = 75
+        cone_angle = 40
+
+        base_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
+
+        p1 = self.pos
+        left_angle = math.radians(base_angle - cone_angle)
+        right_angle = math.radians(base_angle + cone_angle)
+
+        p2 = self.pos + pygame.math.Vector2(math.cos(left_angle), math.sin(left_angle)) * cone_length
+        p3 = self.pos + pygame.math.Vector2(math.cos(right_angle), math.sin(right_angle)) * cone_length
+
+        cone_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.polygon(cone_surface, (255, 0, 0, 60), [p1, p2, p3])
+        surface.blit(cone_surface, (0, 0))
 
 class Obstaculo(ObjetoCenario):
     def __init__(self, col, row, tile_type, letter_id=""):

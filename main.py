@@ -35,11 +35,12 @@ class Game:
         self.papers = pygame.sprite.Group()
         self.background_tiles = pygame.sprite.Group()
         self.exit_rect = None
+        self.librarian_spawn_pos = (17, 10)  # Padrão de segurança longe do jogador
 
         for row, tiles in enumerate(map_data):
             for col, tile in enumerate(tiles):
                 # Desenha o piso base para posições onde há caminhada ou itens
-                if tile in [0, 3, 4, 6]:
+                if tile in [0, 3, 4, 6, 7]:
                     bg = ObjetoCenario(col, row, tilesize, tilesize)
                     bg.image.fill(floor_color)
                     self.background_tiles.add(bg)
@@ -62,18 +63,21 @@ class Game:
                     papr = ItemColetavel(col, row)
                     self.papers.add(papr)
                     self.all_sprites.add(papr)
+                elif tile == 7:
+                    self.librarian_spawn_pos = (col, row)
 
-        # Dispersão das pistas do Easter Egg em posições livres das paredes
+        # Dispersão das pistas do Easter Egg em posições livres
         pistas_pos = [("I", 2, 8), ("F", 4, 12), ("R", 8, 3), ("N", 10, 11)]
         for letra, cx, cy in pistas_pos: 
             pista = ItemColetavel(cx, cy, is_easter_egg=True, letter_hint=letra)
             self.papers.add(pista)
             self.all_sprites.add(pista)
 
-        # Injeção das instâncias do Player e Librarian
+        # Injeção das instâncias do Player e Librarian nas posições corretas
         self.player = Player(self, self.spawn_pos[0], self.spawn_pos[1])
         self.all_sprites.add(self.player)
-        self.librarian = Librarian(self, 2, 1)
+        
+        self.librarian = Librarian(self, self.librarian_spawn_pos[0], self.librarian_spawn_pos[1])
         self.all_sprites.add(self.librarian)
 
     def trigger_catch(self):
@@ -81,15 +85,97 @@ class Game:
         if self.lives <= 0:
             self.state = 'GAMEOVER'
         else:
+            # Reseta a posição do jogador
             self.player.x = float(self.spawn_pos[0] * tilesize)
             self.player.y = float(self.spawn_pos[1] * tilesize)
             self.player.hitbox.center = (int(self.player.x) + tilesize // 2, int(self.player.y) + tilesize // 2)
             self.player.rect.center = self.player.hitbox.center
 
-            self.librarian.pos = pygame.math.Vector2(2 * tilesize + tilesize // 2, 1 * tilesize + tilesize // 2)
-            self.librarian.rect.center = (int(self.librarian.pos.x), int(self.librarian.pos.y))
-            self.librarian.current_waypoint = 0
+            # Reseta o Bibliotecário no spawn
+            lx, ly = self.librarian_spawn_pos
+            self.librarian.reset_to_grid(lx, ly)
+            self.librarian.choose_next_cell()
 
+    def draw(self):
+        self.screen.fill(black)
+
+        if self.state == 'MENU':
+            offset = random.randint(-3, 3) if random.random() > 0.88 else 0
+            cor_titulo = red if offset != 0 else white
+            t_surf = self.font_title.render("THE MIDNIGHT ASSIGNMENT", True, cor_titulo)
+            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2 + offset, height//4))
+
+            opcoes = ["Jogar", "Créditos", "Sair"]
+            for i, opt in enumerate(opcoes):
+                cor = yellow if i == self.menu_index else light_gray
+                prefixo = "> " if i == self.menu_index else " "
+                opt_surf = self.font_hud.render(prefixo + opt, True, cor)
+                self.screen.blit(opt_surf, (width//2 - 60, height//2 + (i * 40)))
+
+        elif self.state == 'CREDITS':
+            t_surf = self.font_title.render("CRÉDITOS DO JOGO", True, white)
+            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2, 100))
+
+            c1 = self.font_hud.render("Desenvolvido para avaliação do 2 bimestre - IFRN", True, white)
+            c2 = self.font_hud.render("GDD e Mecânicas: estilo arcade", True, light_gray)
+            c3 = self.font_hud.render("Pressione [ESPAÇO] ou [ESC] para retornar ao menu", True, yellow)
+            self.screen.blit(c1, (width//2 - c1.get_width()//2, 220))
+            self.screen.blit(c2, (width//2 - c2.get_width()//2, 260))
+            self.screen.blit(c3, (width//2 - c3.get_width()//2, 340))
+
+        elif self.state == 'SELECT_AVATAR':
+            t_surf = self.font_title.render("SELEÇÃO DE AVATAR", True, white)
+            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2, 70))
+
+            pygame.draw.rect(self.screen, purple, (width//2 - 120, 160, 240, 240), 5)
+            pygame.draw.circle(self.screen, purple, (width//2, 260), 60)
+            pygame.draw.rect(self.screen, white, (width//2 - 30, 230, 60, 60))
+
+            self.screen.blit(self.font_hud.render("Carlos Eugênio", True, white), (width//2 - 60, 415))
+            self.screen.blit(self.font_hud.render("Especialidade: camuflagem e movimentação em sombras", True, light_gray), (width//2 - 215, 455))
+
+            inst = self.font_hud.render("Pressione [ENTER] ou [ESPAÇO] para iniciar a missão", True, yellow)
+            self.screen.blit(inst, (width//2 - inst.get_width()//2, 540))
+
+        elif self.state == 'PLAYING':
+            self.background_tiles.draw(self.screen)
+            self.all_sprites.draw(self.screen)
+            self.librarian.draw_vision_cone(self.screen)
+            self.draw_hud()
+
+        elif self.state == 'GAMEOVER':
+            t_surf = self.font_title.render("EXPULSO DA BIBLIOTECA!", True, red)
+            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2, height//3))
+            
+            res = self.font_hud.render(f"Pontuação Final Consolidada: {self.score} pontos.", True, white)
+            self.screen.blit(res, (width//2 - res.get_width()//2, height//2))
+            
+            inst = self.font_hud.render("Pressione [R] para Novo Jogo ou [Q] para sair", True, light_gray)
+            self.screen.blit(inst, (width//2 - inst.get_width()//2, height//2 + 60))
+
+        elif self.state == 'VICTORY':
+            t_surf = self.font_title.render("TRABALHO RECUPERADO COM SUCESSO!", True, green)
+            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2, height//3))
+            
+            res = self.font_hud.render(f"Pontuação Final Consolidada: {self.score} pontos.", True, white)
+            self.screen.blit(res, (width//2 - res.get_width()//2, height//2))
+            
+            inst = self.font_hud.render("Pressione [R] para Novo Jogo ou [Q] para sair", True, light_gray)
+            self.screen.blit(inst, (width//2 - inst.get_width()//2, height//2 + 60))
+
+        elif self.state == 'EASTER_EGG':
+            self.screen.fill((25, 15, 45))
+            pygame.draw.rect(self.screen, yellow, (width//2 - 100, 100, 200, 240), 6)
+            pygame.draw.circle(self.screen, purple, (width//2, 210), 60)
+
+            t1 = self.font_title.render("O GUARDIÃO DO CONHECIMENTO", True, yellow)
+            t2 = self.font_hud.render('"Dizem que ele sabe quando você usa ChatGPT..."', True, white)
+
+            self.screen.blit(t1, (width//2 - t1.get_width()//2, 380))
+            self.screen.blit(t2, (width//2 - t2.get_width()//2, 440))
+            self.screen.blit(self.font_hud.render("Segredo Revelado! Pressione [R] para retornar", True, light_gray), (width//2 - 190, 520))
+
+        pygame.display.flip()
     def trigger_easter_egg_unlock(self):
         for row in range(len(map_data)):
             for col in range(len(map_data[0])):
@@ -250,6 +336,8 @@ class Game:
         elif self.state == 'PLAYING':
             self.background_tiles.draw(self.screen)
             self.all_sprites.draw(self.screen)
+            # Desenha o cone de visão vermelho em cima do cenário
+            self.librarian.draw_vision_cone(self.screen)
             self.draw_hud()
 
         elif self.state in ['GAMEOVER', 'VICTORY']:
