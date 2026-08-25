@@ -309,28 +309,29 @@ class Librarian(pygame.sprite.Sprite):
         pygame.draw.polygon(cone_surface, (200, 0, 0, 90), [p1, p2, p3])
         surface.blit(cone_surface, (0, 0))
 
-class Obstaculo(ObjetoCenario):
+class Obstaculo(pygame.sprite.Sprite):
     def __init__(self, col, row, tile_type, letter_id=""):
-        super().__init__(col, row, tilesize, tilesize)
+        super().__init__()
         self.tile_type = tile_type
-        self.letter_id = letter_id
-        self.col = col
-        self.row = row
-        self.render_visual()
+        self.letter_id = letter_id  # <--- Salva a identificacao da letra (I, F, R, N)
+        self.image = pygame.Surface((tilesize, tilesize))
 
-    def render_visual(self):
-        # Transforma o tile 9 (sala secreta) visualmente em uma estante normal
-        if self.tile_type in [1, 9]:
-            self.image.fill(dark_gray)
-            pygame.draw.rect(self.image, yellow, (4, 4, 6, 24))
-            pygame.draw.rect(self.image, blue, (14, 4, 6, 24))
-            if self.letter_id:
-                font = pygame.font.SysFont("Arial", 14, bold=True)
-                let_surf = font.render(self.letter_id, True, white)
-                self.image.blit(let_surf, (22, 8))
-        elif self.tile_type == 2:
-            self.image.fill(light_gray)
-            pygame.draw.rect(self.image, black, (2, 2, tilesize-4, tilesize-4), 2)
+        if tile_type == 1:
+            self.image.fill((70, 70, 80)) # Cor das estantes comuns
+        elif tile_type == 2:
+            self.image.fill(dark_gray)   # Paredes externas
+        elif tile_type == 9:
+            self.image.fill((40, 40, 60)) # Blocos da passagem secreta
+
+        # Desenha a letra visível no topo da estante
+        if self.letter_id:
+            font = pygame.font.SysFont("Arial", 16, bold=True)
+            text_surf = font.render(self.letter_id, True, (255, 215, 0))
+            self.image.blit(text_surf, (8, 4))
+
+        self.rect = self.image.get_rect()
+        self.rect.x = col * tilesize
+        self.rect.y = row * tilesize
 
 class ItemColetavel(ObjetoCenario):
     def __init__(self, col, row, is_easter_egg=False, letter_hint=""):

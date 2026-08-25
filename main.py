@@ -23,15 +23,16 @@ class Game:
         self.score = 0
         self.lives = 3 
         self.papers_collected = 0
-        self.total_papers_needed = 3
+        self.total_papers_needed = 5
         self.exit_unlocked = False 
 
-        # Controles das Pistas do Easter Egg
-        self.pistas_coletadas = set()  # Guarda quais letras o jogador pegou no chão
-        self.pistas_totais = {"I", "F", "R", "N"}
+        # Controles do Easter Egg
+        self.pistas_coletadas = set()
         self.easter_egg_sequence = []
         self.correct_sequence = ["I", "F", "R", "N"]
         self.pistas_spawned = False
+        self.msg_feedback = ""
+        self.msg_timer = 0
 
     def init_level(self):
         global map_data
@@ -44,10 +45,11 @@ class Game:
         self.quadro_group = pygame.sprite.Group()
         self.exit_rect = None
 
-        self.librarian_spawn_pos = (28, 1)
+        self.librarian_spawn_pos = (27, 1)
         self.pistas_spawned = False
         self.pistas_coletadas.clear()
         self.easter_egg_sequence = []
+        self.msg_feedback = ""
 
         for row, tiles in enumerate(map_data):
             for col, tile in enumerate(tiles):
@@ -57,11 +59,12 @@ class Game:
                     self.background_tiles.add(bg)
 
                 if tile in [1, 2, 9]:
+                    # Mapeia explicitamente as estantes com cada letra do Easter Egg
                     letter = ""
                     if row == 2 and col == 2: letter = "I"
-                    if row == 2 and col == 9: letter = "F"
-                    if row == 5 and col == 12: letter = "R"
-                    if row == 8 and col == 6: letter = "N"
+                    elif row == 2 and col == 9: letter = "F"
+                    elif row == 5 and col == 12: letter = "R"
+                    elif row == 8 and col == 6: letter = "N"
 
                     obs = Obstaculo(col, row, tile, letter)
                     self.walls.add(obs)
@@ -92,6 +95,11 @@ class Game:
             self.papers.add(pista)
             self.all_sprites.add(pista)
         self.pistas_spawned = True
+        self.set_feedback("As 4 pistas apareceram no mapa!")
+
+    def set_feedback(self, msg):
+        self.msg_feedback = msg
+        self.msg_timer = 180  # Exibe por 3 segundos
 
     def trigger_catch(self):
         self.lives -= 1
@@ -116,33 +124,39 @@ class Game:
                     bg.image.fill(floor_color)
                     self.background_tiles.add(bg)
 
-                    for wall in list(self.walls):
-                        if wall.rect.x == col * tilesize and wall.rect.y == row * tilesize:
-                            wall.kill()
+        for wall in list(self.walls):
+            if wall.tile_type == 9:
+                wall.kill()
+        
+        self.set_feedback("PASSAGEM SECRETA ABERTA!")
 
     def check_bookshelf_interaction(self):
-        # EXIGÊNCIA 1: O jogador DEVE ter liberado a saída (3 folhas coletadas)
-        # EXIGÊNCIA 2: O jogador DEVE ter coletado TODAS as 4 pistas (I, F, R, N)
-        if not self.exit_unlocked or len(self.pistas_coletadas) < 4:
+        if not self.exit_unlocked:
+            self.set_feedback("Pegue as 5 folhas principais primeiro!")
             return
 
+        if len(self.pistas_coletadas) < 4:
+            self.set_feedback(f"Faltam pistas no chão! ({len(self.pistas_coletadas)}/4)")
+            return
+
+        # Raio de interação ao redor do jogador
+        player_box = self.player.hitbox.inflate(20, 20)
+        
         for wall in self.walls:
-            if wall.letter_id:
-                if self.player.hitbox.inflate(16, 16).colliderect(wall.rect):
-                    # Evita registrar o mesmo bloco várias vezes seguidas
-                    if not self.easter_egg_sequence or self.easter_egg_sequence[-1] != wall.letter_id:
+            if hasattr(wall, 'letter_id') and wall.letter_id:
+                if player_box.colliderect(wall.rect):
+                    proxima_esperada = self.correct_sequence[len(self.easter_egg_sequence)]
+                    
+                    if wall.letter_id == proxima_esperada:
+                        self.easter_egg_sequence.append(wall.letter_id)
+                        self.set_feedback(f"Sequencia: {'-'.join(self.easter_egg_sequence)}")
                         
-                        # Verifica se a letra pressionada condiz com a posição certa da sequência
-                        proxima_esperada = self.correct_sequence[len(self.easter_egg_sequence)]
-                        
-                        if wall.letter_id == proxima_esperada:
-                            self.easter_egg_sequence.append(wall.letter_id)
-                            # Se completou I-F-R-N perfeitamente, abre!
-                            if self.easter_egg_sequence == self.correct_sequence:
-                                self.trigger_easter_egg_unlock()
-                        else:
-                            # Errou a ordem/letra? Reseta o progresso para forçar tentar de novo
-                            self.easter_egg_sequence = []
+                        if self.easter_egg_sequence == self.correct_sequence:
+                            self.trigger_easter_egg_unlock()
+                    else:
+                        self.easter_egg_sequence = []
+                        self.set_feedback(f"Ordem incorreta! Reseta para [I]. Pressionou: {wall.letter_id}")
+                    return
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -177,7 +191,7 @@ class Game:
                         self.state = 'MENU'
 
                 elif self.state == 'PLAYING':
-                    if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                    if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e]:
                         self.check_bookshelf_interaction()
                     elif event.key == pygame.K_ESCAPE:
                         self.state = 'MENU'
@@ -199,6 +213,9 @@ class Game:
         if self.state == 'PLAYING':
             self.all_sprites.update(dt)
 
+            if self.msg_timer > 0:
+                self.msg_timer -= 1
+
             collected = pygame.sprite.spritecollide(self.player, self.papers, True)
             for item in collected:
                 if not item.is_easter_egg:
@@ -210,9 +227,9 @@ class Game:
                             self.spawn_pistas_easter_egg()
                 else:
                     self.score += 50
-                    # Registra que o jogador pegou o papel da letra no chão
                     if hasattr(item, 'letter_hint'):
                         self.pistas_coletadas.add(item.letter_hint)
+                        self.set_feedback(f"Pegou pista [{item.letter_hint}] ({len(self.pistas_coletadas)}/4)")
 
             if hasattr(self, 'quadro_secreto'):
                 if self.player.hitbox.colliderect(self.quadro_secreto.rect):
@@ -227,8 +244,12 @@ class Game:
         txt = f"PONTOS: {self.score:04d}   FOLHAS: {self.papers_collected}/{self.total_papers_needed}   PISTAS: {len(self.pistas_coletadas)}/4"
         self.screen.blit(self.font_hud.render(txt, True, white), (15, 8))
 
-        radar_text, radar_color, em_visao = self.librarian.get_radar_status()
+        radar_text, radar_color, _ = self.librarian.get_radar_status()
         self.screen.blit(self.font_hud.render(radar_text, True, radar_color), (500, 8))
+
+        if self.msg_timer > 0:
+            lbl = self.font_hud.render(self.msg_feedback, True, yellow)
+            self.screen.blit(lbl, (width // 2 - lbl.get_width() // 2, height - 30))
 
         for i in range(3):
             cad_rect = pygame.Rect(width - 110 + (i * 26), 8, 16, 20)
