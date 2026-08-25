@@ -319,7 +319,8 @@ class Obstaculo(ObjetoCenario):
         self.render_visual()
 
     def render_visual(self):
-        if self.tile_type == 1:
+        # Transforma o tile 9 (sala secreta) visualmente em uma estante normal
+        if self.tile_type in [1, 9]:
             self.image.fill(dark_gray)
             pygame.draw.rect(self.image, yellow, (4, 4, 6, 24))
             pygame.draw.rect(self.image, blue, (14, 4, 6, 24))
