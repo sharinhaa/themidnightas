@@ -11,8 +11,13 @@ class Game:
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("The Midnight Assignment")
         self.clock = pygame.time.Clock()
+        self.running = True
         self.font_title = pygame.font.SysFont("Courier New", 36, bold=True)
         self.font_hud = pygame.font.SysFont("Arial", 18, bold=True)
+        self.font_menu = pygame.font.SysFont("Arial", 16, bold=True)
+
+        self.menu_bg = pygame.image.load("imagens/menu_bg.png").convert()
+        self.menu_bg = pygame.transform.scale(self.menu_bg, (width, height))
 
         self.original_map_data = copy.deepcopy(map_data)
 
@@ -59,7 +64,6 @@ class Game:
                     self.background_tiles.add(bg)
 
                 if tile in [1, 2, 9]:
-                    # Mapeia explicitamente as estantes com cada letra do Easter Egg
                     letter = ""
                     if row == 2 and col == 2: letter = "I"
                     elif row == 2 and col == 9: letter = "F"
@@ -99,7 +103,7 @@ class Game:
 
     def set_feedback(self, msg):
         self.msg_feedback = msg
-        self.msg_timer = 180  # Exibe por 3 segundos
+        self.msg_timer = 180
 
     def trigger_catch(self):
         self.lives -= 1
@@ -139,7 +143,6 @@ class Game:
             self.set_feedback(f"Faltam pistas no chão! ({len(self.pistas_coletadas)}/4)")
             return
 
-        # Raio de interação ao redor do jogador
         player_box = self.player.hitbox.inflate(20, 20)
         
         for wall in self.walls:
@@ -161,19 +164,18 @@ class Game:
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                self.running = False
 
             if event.type == pygame.KEYDOWN:
                 if self.state == 'MENU':
-                    if event.key in [pygame.K_UP, pygame.K_w]:
+                    if event.key in [pygame.K_LEFT, pygame.K_a]:
                         self.menu_index = (self.menu_index - 1) % 3
-                    elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
                         self.menu_index = (self.menu_index + 1) % 3
                     elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                         if self.menu_index == 0:   self.state = 'SELECT_AVATAR'
                         elif self.menu_index == 1: self.state = 'CREDITS'
-                        elif self.menu_index == 2: pygame.quit(); sys.exit()
+                        elif self.menu_index == 2: self.running = False
 
                 elif self.state == 'CREDITS':
                     if event.key in [pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN]:
@@ -267,17 +269,24 @@ class Game:
         self.screen.fill(black)
 
         if self.state == 'MENU':
-            offset = random.randint(-2, 2) if random.random() > 0.88 else 0
-            cor_titulo = red if offset != 0 else white
-            t_surf = self.font_title.render("THE MIDNIGHT ASSIGNMENT", True, cor_titulo)
-            self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2 + offset, height//4))
+            self.screen.blit(self.menu_bg, (0, 0))
 
             opcoes = ["Jogar", "Créditos", "Sair"]
+            posicoes_x = [355, 519, 690]
+            
+            posicao_y = 510
+
             for i, opt in enumerate(opcoes):
-                cor = yellow if i == self.menu_index else light_gray
-                prefixo = "> " if i == self.menu_index else " "
-                opt_surf = self.font_hud.render(prefixo + opt, True, cor)
-                self.screen.blit(opt_surf, (width//2 - 40, height//2 + (i * 35)))
+                cor = yellow if i == self.menu_index else (220, 220, 230)
+                opt_surf = self.font_menu.render(opt, True, cor)
+                opt_rect = opt_surf.get_rect(center=(posicoes_x[i], posicao_y))
+                
+                if i == self.menu_index:
+                    seta_surf = self.font_hud.render("▼", True, yellow)
+                    seta_rect = seta_surf.get_rect(center=(posicoes_x[i], posicao_y - 20))
+                    self.screen.blit(seta_surf, seta_rect)
+                    
+                self.screen.blit(opt_surf, opt_rect)
 
         elif self.state == 'CREDITS':
             t_surf = self.font_title.render("CRÉDITOS DO JOGO", True, white)
@@ -336,11 +345,14 @@ class Game:
         pygame.display.flip()
 
     def run(self):
-        while True:
+        while self.running:
             dt = self.clock.tick(fps) / 1000.0
             self.handle_events()
             self.update(dt)
             self.draw()
+
+        pygame.quit()
+        sys.exit()
 
 if __name__ == '__main__':
     game = Game()
