@@ -1,3 +1,4 @@
+#config.py
 import pygame
 
 width = 960
