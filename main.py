@@ -9,18 +9,27 @@ from sprites import *
 class Game:
     def __init__(self):
         pygame.init()
+
+        # 1. Primeiro inicializa a janela do Pygame (Video Mode)
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("The Midnight Assignment")
+
         self.clock = pygame.time.Clock()
         self.running = True
+
+        # 2. Guarda a cópia do mapa original ANTES de usar no gerador
+        self.original_map_data = copy.deepcopy(map_data)
+
+        # 3. Agora sim gera o cenário completo baseado no mapa
+        gerador = BibliotecaGerador(tilesize)
+        self.cenario_bg = gerador.gerar_cenario_completo(self.original_map_data, width, height)
+
         self.font_title = pygame.font.SysFont("Courier New", 36, bold=True)
         self.font_hud = pygame.font.SysFont("Arial", 18, bold=True)
         self.font_menu = pygame.font.SysFont("Arial", 16, bold=True)
 
         self.menu_bg = pygame.image.load("imagens/menu_bg.png").convert()
         self.menu_bg = pygame.transform.scale(self.menu_bg, (width, height))
-
-        self.original_map_data = copy.deepcopy(map_data)
 
         self.state = 'MENU'
         self.menu_index = 0
@@ -61,7 +70,7 @@ class Game:
             for col, tile in enumerate(tiles):
                 if tile in [0, 3, 4, 6, 7, 8]:
                     bg = ObjetoCenario(col, row, tilesize, tilesize)
-                    bg.image.fill(floor_color)
+                    bg.image.set_alpha(0)  # Oculta o piso para mostrar o cenario_bg
                     self.background_tiles.add(bg)
 
                 if tile in [1, 2, 9]:
@@ -72,6 +81,7 @@ class Game:
                     elif row == 8 and col == 6: letter = "N"
 
                     obs = Obstaculo(col, row, tile, letter)
+                    obs.image.set_alpha(0)  # Mantem colisão mas oculta o sprite cinza
                     self.walls.add(obs)
                     self.all_sprites.add(obs)
                 elif tile == 3:
@@ -84,6 +94,7 @@ class Game:
                     self.all_sprites.add(papr)
                 elif tile == 8:
                     self.quadro_secreto = QuadroSecreto(col, row)
+                    self.quadro_secreto.image.set_alpha(0)
                     self.quadro_group.add(self.quadro_secreto)
                     self.all_sprites.add(self.quadro_secreto)
 
@@ -125,9 +136,6 @@ class Game:
             for col in range(len(map_data[0])):
                 if map_data[row][col] == 9:
                     map_data[row][col] = 0
-                    bg = ObjetoCenario(col, row, tilesize, tilesize)
-                    bg.image.fill(floor_color)
-                    self.background_tiles.add(bg)
 
         for wall in list(self.walls):
             if wall.tile_type == 9:
@@ -264,7 +272,7 @@ class Game:
                 pygame.draw.line(self.screen, red, (cad_rect.left, cad_rect.top), (cad_rect.right, cad_rect.bottom), 2)
 
         if self.exit_unlocked and self.exit_rect:
-            pygame.draw.rect(self.screen, blue, self.exit_rect)
+            pygame.draw.rect(self.screen, blue, self.exit_rect, 2)
 
     def draw(self):
         self.screen.fill(black)
@@ -274,7 +282,6 @@ class Game:
 
             opcoes = ["Jogar", "Créditos", "Sair"]
             posicoes_x = [355, 519, 690]
-            
             posicao_y = 510
 
             for i, opt in enumerate(opcoes):
@@ -315,7 +322,7 @@ class Game:
             self.screen.blit(inst, (width//2 - inst.get_width()//2, 480))
 
         elif self.state == 'PLAYING':
-            self.background_tiles.draw(self.screen)
+            self.screen.blit(self.cenario_bg, (0, 0))
             self.librarian.draw_vision_cone(self.screen)
             self.all_sprites.draw(self.screen)
             self.draw_hud()

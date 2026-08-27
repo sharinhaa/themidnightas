@@ -362,3 +362,79 @@ class QuadroSecreto(ObjetoCenario):
         pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 3)
         pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
         pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
+
+class BibliotecaGerador:
+    def __init__(self, tilesize):
+        self.tilesize = tilesize
+        
+        # Cores da biblioteca
+        self.COR_CHAO = (101, 67, 33)       
+        self.COR_LINHA_CHAO = (80, 50, 20)
+        self.COR_ESTANTE = (60, 35, 15)    
+        self.COR_LIVROS = [(180, 40, 40), (40, 100, 180), (40, 140, 60), (200, 170, 50)]
+        self.COR_PAREDE = (40, 40, 45)
+
+    def criar_textura_chao(self):
+        """Cria um bloco de piso de madeira"""
+        surface = pygame.Surface((self.tilesize, self.tilesize))
+        surface.fill(self.COR_CHAO)
+        # Desenha tábuas de madeira
+        pygame.draw.rect(surface, self.COR_LINHA_CHAO, (0, 0, self.tilesize, self.tilesize), 1)
+        pygame.draw.line(surface, self.COR_LINHA_CHAO, (0, self.tilesize//2), (self.tilesize, self.tilesize//2), 1)
+        return surface
+
+    def criar_textura_estante(self, letra=""):
+        """Cria um bloco de estante com livros e borda opcional"""
+        surface = pygame.Surface((self.tilesize, self.tilesize))
+        surface.fill(self.COR_ESTANTE)
+        
+        # Prateleira superior e inferior
+        pygame.draw.rect(surface, (30, 15, 5), (0, 0, self.tilesize, 4))
+        pygame.draw.rect(surface, (30, 15, 5), (0, self.tilesize - 4, self.tilesize, 4))
+        
+        # Livros aleatórios/estáticos na estante
+        x = 4
+        i = 0
+        while x < self.tilesize - 6:
+            largura_livro = 4
+            cor = self.COR_LIVROS[i % len(self.COR_LIVROS)]
+            pygame.draw.rect(surface, cor, (x, 6, largura_livro, self.tilesize - 10))
+            x += largura_livro + 1
+            i += 1
+
+        # Moldura dourada para estantes especiais com letra
+        if letra:
+            pygame.draw.rect(surface, (212, 175, 55), (0, 0, self.tilesize, self.tilesize), 2)
+            font = pygame.font.SysFont("Arial", 14, bold=True)
+            txt = font.render(letra, True, (255, 255, 255))
+            surface.blit(txt, (self.tilesize//2 - txt.get_width()//2, 2))
+
+        return surface
+
+    def gerar_cenario_completo(self, map_data, width, height):
+        """Monta o Surface completo da biblioteca baseado na matriz map_data"""
+        cenario = pygame.Surface((width, height))
+        
+        tile_chao = self.criar_textura_chao()
+        tile_estante_padrao = self.criar_textura_estante()
+
+        for row_idx, row in enumerate(map_data):
+            for col_idx, tile in enumerate(row):
+                x = col_idx * self.tilesize
+                y = row_idx * self.tilesize
+                cenario.blit(tile_chao, (x, y))
+
+                if tile in [1, 2, 9]: 
+                    letter = ""
+                    if row_idx == 2 and col_idx == 2: letter = "I"
+                    elif row_idx == 2 and col_idx == 9: letter = "F"
+                    elif row_idx == 5 and col_idx == 12: letter = "R"
+                    elif row_idx == 8 and col_idx == 6: letter = "N"
+                    
+                    if letter:
+                        tile_esp = self.criar_textura_estante(letter)
+                        cenario.blit(tile_esp, (x, y))
+                    else:
+                        cenario.blit(tile_estante_padrao, (x, y))
+
+        return cenario
