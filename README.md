@@ -15,9 +15,8 @@ INIMIGOS E OBSTÁCULOS: O bibliotecário não será apenas um obstáculo móvel,
 CENÁRIO/MAPA E LEVEL DESIGN: em sua estrutura técnica, o mapa é interpretado como uma malha de tiles (ladrilhos). Cada número na matriz corresponde a um tipo de objeto:
 0: piso - caminho livre;
 1: estante de livros - bloqueio total de movimento e campo de visão;
-2: mesa de estudo - bloqueio de movimento, mas permite a o campo de visão do inimigo sem dificuldades;
-3: ponto de spaw - onde o avatar começam;
-4: saída -só se torna ativa após coletar os itenso. 
+2: ponto de spaw - onde o avatar começam;
+3: saída -só se torna ativa após coletar os itenso. 
 Na distribuição de itens, as folhas de papel são objetos do tipo sprite posicionados em coordenadas (x, y) que coincidem com os centros dos tiles do tipo 0. inicialmente, os locais são fixos para garantir que o nível seja "vencível" e equilibrado.
 
 SISTEMA DE PONTUAÇÃO: o sistema de pontuação é gerenciado por uma variável de global ou um atributo de classe. Os pontos são acumulados durante a partida e exibidos em tempo real na interface (HUD). 
