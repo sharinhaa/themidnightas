@@ -10,17 +10,14 @@ class Game:
     def __init__(self):
         pygame.init()
 
-        # 1. Primeiro inicializa a janela do Pygame (Video Mode)
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("The Midnight Assignment")
 
         self.clock = pygame.time.Clock()
         self.running = True
 
-        # 2. Guarda a cópia do mapa original ANTES de usar no gerador
         self.original_map_data = copy.deepcopy(map_data)
 
-        # 3. Agora sim gera o cenário completo baseado no mapa
         gerador = BibliotecaGerador(tilesize)
         self.cenario_bg = gerador.gerar_cenario_completo(self.original_map_data, width, height)
 
@@ -40,8 +37,8 @@ class Game:
         self.papers_collected = 0
         self.total_papers_needed = 5
         self.exit_unlocked = False 
-
-        # Controles do Easter Egg
+        
+        #Controles do easter egg
         self.pistas_coletadas = set()
         self.easter_egg_sequence = []
         self.correct_sequence = ["I", "F", "R", "N"]
@@ -60,6 +57,8 @@ class Game:
         self.quadro_group = pygame.sprite.Group()
         self.exit_rect = None
 
+        self.quadro_pos_coords = None 
+
         self.librarian_spawn_pos = (27, 1)
         self.pistas_spawned = False
         self.pistas_coletadas.clear()
@@ -70,7 +69,7 @@ class Game:
             for col, tile in enumerate(tiles):
                 if tile in [0, 3, 4, 6, 7, 8]:
                     bg = ObjetoCenario(col, row, tilesize, tilesize)
-                    bg.image.set_alpha(0)  # Oculta o piso para mostrar o cenario_bg
+                    bg.image.set_alpha(0) 
                     self.background_tiles.add(bg)
 
                 if tile in [1, 2, 9]:
@@ -81,7 +80,7 @@ class Game:
                     elif row == 8 and col == 6: letter = "N"
 
                     obs = Obstaculo(col, row, tile, letter)
-                    obs.image.set_alpha(0)  # Mantem colisão mas oculta o sprite cinza
+                    obs.image.set_alpha(0) 
                     self.walls.add(obs)
                     self.all_sprites.add(obs)
                 elif tile == 3:
@@ -93,10 +92,7 @@ class Game:
                     self.papers.add(papr)
                     self.all_sprites.add(papr)
                 elif tile == 8:
-                    self.quadro_secreto = QuadroSecreto(col, row)
-                    self.quadro_secreto.image.set_alpha(0)
-                    self.quadro_group.add(self.quadro_secreto)
-                    self.all_sprites.add(self.quadro_secreto)
+                    self.quadro_pos_coords = (col, row)
 
         self.player = Player(self, self.spawn_pos[0], self.spawn_pos[1])
         self.all_sprites.add(self.player)
@@ -140,8 +136,15 @@ class Game:
         for wall in list(self.walls):
             if wall.tile_type == 9:
                 wall.kill()
-        
-        self.set_feedback("PASSAGEM SECRETA ABERTA!")
+
+        if self.quadro_pos_coords:
+            col, row = self.quadro_pos_coords
+            self.quadro_secreto = QuadroSecreto(col, row)
+            self.quadro_secreto.image.set_alpha(0)  
+            self.quadro_group.add(self.quadro_secreto)
+            self.all_sprites.add(self.quadro_secreto)
+
+        self.set_feedback("PASSAGEM SECRETA E SALA REVELADAS!")
 
     def check_bookshelf_interaction(self):
         if not self.exit_unlocked:
