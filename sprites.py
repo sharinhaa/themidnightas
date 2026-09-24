@@ -1,4 +1,3 @@
-#sprites.py
 import pygame
 import math
 import random
@@ -6,7 +5,6 @@ from config import *
 from collections import deque
 
 class Entidade(pygame.sprite.Sprite):
-    """Classe base para objetos móveis."""
     def __init__(self, game, x, y):
         super().__init__()
         self.game = game
@@ -18,7 +16,6 @@ class Entidade(pygame.sprite.Sprite):
         self.rect.y = int(self.y)
 
 class ObjetoCenario(pygame.sprite.Sprite):
-    """Classe base para elementos estáticos do cenário."""
     def __init__(self, x, y, largura, altura):
         super().__init__()
         self.image = pygame.Surface((largura, altura), pygame.SRCALPHA)
@@ -27,7 +24,6 @@ class ObjetoCenario(pygame.sprite.Sprite):
         self.rect.y = y * tilesize
 
 class Player(Entidade):
-    """Jogador: Carlos Eugênio."""
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
         self.vx, self.vy = 0, 0
@@ -86,7 +82,6 @@ class Player(Entidade):
         self.get_input()
         self.move_and_collide(dt)
 
-
 class Librarian(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
         super().__init__()
@@ -130,7 +125,6 @@ class Librarian(pygame.sprite.Sprite):
     def get_valid_neighbors(self, col, row):
         candidates = []
         directions = [(col + 1, row), (col - 1, row), (col, row + 1), (col, row - 1)]
-        
         for c, r in directions:
             if self.is_walkable(c, r):
                 candidates.append((c, r))
@@ -314,17 +308,16 @@ class Obstaculo(pygame.sprite.Sprite):
     def __init__(self, col, row, tile_type, letter_id=""):
         super().__init__()
         self.tile_type = tile_type
-        self.letter_id = letter_id  # <--- Salva a identificacao da letra (I, F, R, N)
+        self.letter_id = letter_id
         self.image = pygame.Surface((tilesize, tilesize))
 
         if tile_type == 1:
-            self.image.fill((70, 70, 80)) # Cor das estantes comuns
+            self.image.fill((70, 70, 80))
         elif tile_type == 2:
-            self.image.fill(dark_gray)   # Paredes externas
+            self.image.fill(dark_gray)
         elif tile_type == 9:
-            self.image.fill((40, 40, 60)) # Blocos da passagem secreta
+            self.image.fill((40, 40, 60))
 
-        # Desenha a letra visível no topo da estante
         if self.letter_id:
             font = pygame.font.SysFont("Arial", 16, bold=True)
             text_surf = font.render(self.letter_id, True, (255, 215, 0))
@@ -335,11 +328,15 @@ class Obstaculo(pygame.sprite.Sprite):
         self.rect.y = row * tilesize
 
 class ItemColetavel(ObjetoCenario):
-    def __init__(self, col, row, is_easter_egg=False, letter_hint=""):
+    def __init__(self, col, row, is_easter_egg=False, letter_hint="", em_cima_de_móvel=False):
         super().__init__(col, row, 20, 24)
         
-        # Centraliza o sprite e sua hitbox exatamente na célula
-        self.rect.center = (col * tilesize + tilesize // 2, row * tilesize + tilesize // 2)
+        if em_cima_de_móvel:
+            self.rect.x = col * tilesize + 6
+            self.rect.y = row * tilesize + 2
+        else:
+            self.rect.center = (col * tilesize + tilesize // 2, row * tilesize + tilesize // 2)
+
         self.is_easter_egg = is_easter_egg
         self.letter_hint = letter_hint
 
@@ -366,33 +363,33 @@ class QuadroSecreto(ObjetoCenario):
 class BibliotecaGerador:
     def __init__(self, tilesize):
         self.tilesize = tilesize
-        
-        # Cores da biblioteca
         self.COR_CHAO = (101, 67, 33)       
         self.COR_LINHA_CHAO = (80, 50, 20)
         self.COR_ESTANTE = (60, 35, 15)    
         self.COR_LIVROS = [(180, 40, 40), (40, 100, 180), (40, 140, 60), (200, 170, 50)]
-        self.COR_PAREDE = (40, 40, 45)
+        self.COR_PAREDE = (80, 80, 90)        
+        self.COR_PAREDE_BORDA = (50, 50, 60)  
 
     def criar_textura_chao(self):
-        """Cria um bloco de piso de madeira"""
         surface = pygame.Surface((self.tilesize, self.tilesize))
         surface.fill(self.COR_CHAO)
-        # Desenha tábuas de madeira
         pygame.draw.rect(surface, self.COR_LINHA_CHAO, (0, 0, self.tilesize, self.tilesize), 1)
         pygame.draw.line(surface, self.COR_LINHA_CHAO, (0, self.tilesize//2), (self.tilesize, self.tilesize//2), 1)
         return surface
 
+    def criar_textura_parede(self):
+        surface = pygame.Surface((self.tilesize, self.tilesize))
+        surface.fill(self.COR_PAREDE)
+        pygame.draw.rect(surface, self.COR_PAREDE_BORDA, (0, 0, self.tilesize, self.tilesize), 1)
+        return surface
+
     def criar_textura_estante(self, letra=""):
-        """Cria um bloco de estante com livros e borda opcional"""
         surface = pygame.Surface((self.tilesize, self.tilesize))
         surface.fill(self.COR_ESTANTE)
         
-        # Prateleira superior e inferior
         pygame.draw.rect(surface, (30, 15, 5), (0, 0, self.tilesize, 4))
         pygame.draw.rect(surface, (30, 15, 5), (0, self.tilesize - 4, self.tilesize, 4))
         
-        # Livros aleatórios/estáticos na estante
         x = 4
         i = 0
         while x < self.tilesize - 6:
@@ -402,7 +399,6 @@ class BibliotecaGerador:
             x += largura_livro + 1
             i += 1
 
-        # Moldura dourada para estantes especiais com letra
         if letra:
             pygame.draw.rect(surface, (212, 175, 55), (0, 0, self.tilesize, self.tilesize), 2)
             font = pygame.font.SysFont("Arial", 14, bold=True)
@@ -412,10 +408,10 @@ class BibliotecaGerador:
         return surface
 
     def gerar_cenario_completo(self, map_data, width, height):
-        """Monta o Surface completo da biblioteca baseado na matriz map_data"""
         cenario = pygame.Surface((width, height))
         
         tile_chao = self.criar_textura_chao()
+        tile_parede = self.criar_textura_parede()
         tile_estante_padrao = self.criar_textura_estante()
 
         for row_idx, row in enumerate(map_data):
@@ -424,7 +420,9 @@ class BibliotecaGerador:
                 y = row_idx * self.tilesize
                 cenario.blit(tile_chao, (x, y))
 
-                if tile in [1, 2, 9]: 
+                if tile == 2:
+                    cenario.blit(tile_parede, (x, y))
+                elif tile in [1, 9]:
                     letter = ""
                     if row_idx == 2 and col_idx == 2: letter = "I"
                     elif row_idx == 2 and col_idx == 9: letter = "F"

@@ -1,4 +1,3 @@
-#main.py
 import pygame
 import sys
 import random 
@@ -25,8 +24,12 @@ class Game:
         self.font_hud = pygame.font.SysFont("Arial", 18, bold=True)
         self.font_menu = pygame.font.SysFont("Arial", 16, bold=True)
 
-        self.menu_bg = pygame.image.load("imagens/menu_bg.png").convert()
-        self.menu_bg = pygame.transform.scale(self.menu_bg, (width, height))
+        try:
+            self.menu_bg = pygame.image.load("imagens/menu_bg.png").convert()
+            self.menu_bg = pygame.transform.scale(self.menu_bg, (width, height))
+        except (pygame.error, FileNotFoundError):
+            self.menu_bg = pygame.Surface((width, height))
+            self.menu_bg.fill((15, 15, 25))
 
         self.state = 'MENU'
         self.menu_index = 0
@@ -38,7 +41,6 @@ class Game:
         self.total_papers_needed = 5
         self.exit_unlocked = False 
         
-        #Controles do easter egg
         self.pistas_coletadas = set()
         self.easter_egg_sequence = []
         self.correct_sequence = ["I", "F", "R", "N"]
@@ -55,11 +57,12 @@ class Game:
         self.papers = pygame.sprite.Group()
         self.background_tiles = pygame.sprite.Group()
         self.quadro_group = pygame.sprite.Group()
+        
+        self.spawn_pos = (28, 16)
+        self.librarian_spawn_pos = (2, 1)
         self.exit_rect = None
+        self.quadro_pos_coords = None
 
-        self.quadro_pos_coords = None 
-
-        self.librarian_spawn_pos = (27, 1)
         self.pistas_spawned = False
         self.pistas_coletadas.clear()
         self.easter_egg_sequence = []
@@ -91,6 +94,8 @@ class Game:
                     papr = ItemColetavel(col, row)
                     self.papers.add(papr)
                     self.all_sprites.add(papr)
+                elif tile == 7:
+                    self.librarian_spawn_pos = (col, row)
                 elif tile == 8:
                     self.quadro_pos_coords = (col, row)
 
