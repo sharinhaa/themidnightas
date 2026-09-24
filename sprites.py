@@ -1,3 +1,4 @@
+#sprites.py
 import pygame
 import math
 import random
@@ -309,23 +310,20 @@ class Obstaculo(pygame.sprite.Sprite):
         super().__init__()
         self.tile_type = tile_type
         self.letter_id = letter_id
-        self.image = pygame.Surface((tilesize, tilesize))
+        
+        self.rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
+        self.image = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
 
-        if tile_type == 1:
-            self.image.fill((70, 70, 80))
-        elif tile_type == 2:
-            self.image.fill(dark_gray)
-        elif tile_type == 9:
-            self.image.fill((40, 40, 60))
+        # Se for estante do Easter Egg, desenha o contorno dourado e a letra
+        if self.letter_id != "":
+            cor_dourada = (255, 215, 0)
+            pygame.draw.rect(self.image, cor_dourada, (0, 0, tilesize, tilesize), 2)
 
-        if self.letter_id:
-            font = pygame.font.SysFont("Arial", 16, bold=True)
-            text_surf = font.render(self.letter_id, True, (255, 215, 0))
-            self.image.blit(text_surf, (8, 4))
-
-        self.rect = self.image.get_rect()
-        self.rect.x = col * tilesize
-        self.rect.y = row * tilesize
+            fonte = pygame.font.SysFont("Courier New", 18, bold=True)
+            texto_surf = fonte.render(self.letter_id, True, cor_dourada)
+            texto_rect = texto_surf.get_rect(center=(tilesize // 2, tilesize // 2))
+            
+            self.image.blit(texto_surf, texto_rect)
 
 class ItemColetavel(ObjetoCenario):
     def __init__(self, col, row, is_easter_egg=False, letter_hint="", em_cima_de_móvel=False):
@@ -400,10 +398,10 @@ class BibliotecaGerador:
             i += 1
 
         if letra:
-            pygame.draw.rect(surface, (212, 175, 55), (0, 0, self.tilesize, self.tilesize), 2)
-            font = pygame.font.SysFont("Arial", 14, bold=True)
-            txt = font.render(letra, True, (255, 255, 255))
-            surface.blit(txt, (self.tilesize//2 - txt.get_width()//2, 2))
+            pygame.draw.rect(surface, (255, 215, 0), (0, 0, self.tilesize, self.tilesize), 2)
+            font = pygame.font.SysFont("Courier New", 18, bold=True)
+            txt = font.render(letra, True, (255, 215, 0))
+            surface.blit(txt, (self.tilesize//2 - txt.get_width()//2, self.tilesize//2 - txt.get_height()//2))
 
         return surface
 
@@ -424,10 +422,10 @@ class BibliotecaGerador:
                     cenario.blit(tile_parede, (x, y))
                 elif tile in [1, 9]:
                     letter = ""
-                    if row_idx == 2 and col_idx == 2: letter = "I"
-                    elif row_idx == 2 and col_idx == 9: letter = "F"
-                    elif row_idx == 5 and col_idx == 12: letter = "R"
-                    elif row_idx == 8 and col_idx == 6: letter = "N"
+                    if col_idx == 12 and row_idx == 11: letter = "I"
+                    elif col_idx == 26 and row_idx == 7: letter = "F"
+                    elif col_idx == 2 and row_idx == 2: letter = "R"
+                    elif col_idx == 16 and row_idx == 21: letter = "N"
                     
                     if letter:
                         tile_esp = self.criar_textura_estante(letter)
