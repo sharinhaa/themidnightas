@@ -4,7 +4,6 @@ import random
 import copy
 from config import *
 from sprites import *
-from audio_midnight import AudioMidnight
 
 class Game:
     def __init__(self):
