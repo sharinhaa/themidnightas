@@ -4,6 +4,7 @@ import random
 import copy
 from config import *
 from sprites import *
+from introd import IntroManager 
 
 class Game:
     def __init__(self):
@@ -265,6 +266,15 @@ class Game:
                         self.state = 'PLAYING'
                     elif event.key == pygame.K_ESCAPE:
                         self.state = 'MENU'
+
+                elif self.state == 'INTRO':
+                    if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_RIGHT, pygame.K_d]:
+                        self.audio.play_sfx("paper")
+                        completed = self.intro.next_page()
+                        if completed:
+                            self.start_gameplay()
+                    elif event.key == pygame.K_ESCAPE:
+                        self.start_gameplay()
 
                 elif self.state == 'PLAYING':
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e]:
