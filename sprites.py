@@ -1,9 +1,10 @@
-#sprites.py
 import pygame
 import math
 import random
 from config import *
 from collections import deque
+
+SECOES_ESTANTES = {}
 
 class Entidade(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
@@ -61,9 +62,9 @@ class Player(Entidade):
         self.hitbox.centerx = int(self.x) + tilesize // 2
         
         for wall in self.game.walls:
-            if self.hitbox.colliderect(wall.rect):
-                if self.vx > 0: self.hitbox.right = wall.rect.left
-                elif self.vx < 0: self.hitbox.left = wall.rect.right
+            if self.hitbox.colliderect(wall.hitbox):
+                if self.vx > 0: self.hitbox.right = wall.hitbox.left
+                elif self.vx < 0: self.hitbox.left = wall.hitbox.right
                 self.x = self.hitbox.centerx - tilesize // 2
                 self.vx = 0
 
@@ -71,9 +72,9 @@ class Player(Entidade):
         self.hitbox.centery = int(self.y) + tilesize // 2
         
         for wall in self.game.walls:
-            if self.hitbox.colliderect(wall.rect):
-                if self.vy > 0: self.hitbox.bottom = wall.rect.top
-                elif self.vy < 0: self.hitbox.top = wall.rect.bottom
+            if self.hitbox.colliderect(wall.hitbox):
+                if self.vy > 0: self.hitbox.bottom = wall.hitbox.top
+                elif self.vy < 0: self.hitbox.top = wall.hitbox.bottom
                 self.y = self.hitbox.centery - tilesize // 2
                 self.vy = 0
 
@@ -120,7 +121,7 @@ class Librarian(pygame.sprite.Sprite):
 
     def is_walkable(self, col, row):
         if 0 <= row < len(map_data) and 0 <= col < len(map_data[0]):
-            return map_data[row][col] in [0, 3, 4, 6, 7]
+            return map_data[row][col] in [0, 3, 6, 7, 8]
         return False
 
     def get_valid_neighbors(self, col, row):
@@ -186,7 +187,7 @@ class Librarian(pygame.sprite.Sprite):
         for i in range(1, steps):
             check_point = start.lerp(end, i / steps)
             for wall in self.game.walls:
-                if wall.rect.collidepoint(check_point.x, check_point.y):
+                if wall.hitbox.collidepoint(check_point.x, check_point.y):
                     return False
         return True
 
@@ -308,21 +309,23 @@ class Librarian(pygame.sprite.Sprite):
 class Obstaculo(pygame.sprite.Sprite):
     def __init__(self, col, row, tile_type, letter_id=""):
         super().__init__()
+        self.col = col
+        self.row = row
         self.tile_type = tile_type
         self.letter_id = letter_id
         
         self.rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
+        self.hitbox = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
         self.image = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
 
-        # Se for estante do Easter Egg, desenha o contorno dourado e a letra
         if self.letter_id != "":
-            cor_dourada = (255, 215, 0)
-            pygame.draw.rect(self.image, cor_dourada, (0, 0, tilesize, tilesize), 2)
+            placa_rect = pygame.Rect(6, 6, tilesize - 12, tilesize - 12)
+            pygame.draw.rect(self.image, (35, 20, 10), placa_rect)
+            pygame.draw.rect(self.image, (210, 180, 110), placa_rect, 1)
 
-            fonte = pygame.font.SysFont("Courier New", 18, bold=True)
-            texto_surf = fonte.render(self.letter_id, True, cor_dourada)
+            fonte = pygame.font.SysFont("Courier New", 14, bold=True)
+            texto_surf = fonte.render(self.letter_id, True, (245, 230, 180))
             texto_rect = texto_surf.get_rect(center=(tilesize // 2, tilesize // 2))
-            
             self.image.blit(texto_surf, texto_rect)
 
 class ItemColetavel(ObjetoCenario):
@@ -354,9 +357,15 @@ class QuadroSecreto(ObjetoCenario):
     def __init__(self, col, row):
         super().__init__(col, row, tilesize, tilesize)
         self.image.fill(yellow)
-        pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 3)
-        pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
-        pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
+        pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 2)
+
+        try:
+            img_carregada = pygame.image.load("imagens/Guardião_da_Sabedoria.png").convert_alpha()
+            mini = pygame.transform.scale(img_carregada, (tilesize - 8, tilesize - 8))
+            self.image.blit(mini, (4, 4))
+        except (pygame.error, FileNotFoundError):
+            pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
+            pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
 
 class BibliotecaGerador:
     def __init__(self, tilesize):
@@ -381,6 +390,42 @@ class BibliotecaGerador:
         pygame.draw.rect(surface, self.COR_PAREDE_BORDA, (0, 0, self.tilesize, self.tilesize), 1)
         return surface
 
+    def criar_textura_porta(self):
+        """Desenha uma porta de madeira trancada embutida na parede."""
+        surface = pygame.Surface((self.tilesize, self.tilesize))
+        surface.fill((45, 25, 10))
+        pygame.draw.rect(surface, (115, 65, 28), (3, 2, self.tilesize - 6, self.tilesize - 2))
+        pygame.draw.rect(surface, (75, 40, 15), (6, 5, self.tilesize - 12, self.tilesize - 8), 2)
+        pygame.draw.line(surface, (75, 40, 15), (self.tilesize // 2, 3), (self.tilesize // 2, self.tilesize - 2), 1)
+        pygame.draw.rect(surface, (50, 50, 55), (3, 7, 4, 3))
+        pygame.draw.rect(surface, (50, 50, 55), (3, self.tilesize - 10, 4, 3))
+        pygame.draw.circle(surface, (235, 195, 55), (self.tilesize - 8, self.tilesize // 2), 3)
+        pygame.draw.rect(surface, (25, 15, 5), (self.tilesize - 9, self.tilesize // 2 + 4, 2, 3))
+        return surface
+
+    def criar_textura_porta_aberta(self, para_fora=False):
+        """Desenha a porta aberta: para sala interna ou dando saída para fora da biblioteca."""
+        if para_fora:
+            # Fundo noturno do lado de fora da biblioteca + soleira de madeira
+            surface = pygame.Surface((self.tilesize, self.tilesize))
+            surface.fill((12, 14, 28))
+            pygame.draw.rect(surface, (85, 55, 25), (0, 0, 5, self.tilesize))
+            # Batentes superior e inferior da parede
+            pygame.draw.rect(surface, (45, 25, 10), (0, 0, self.tilesize, 3))
+            pygame.draw.rect(surface, (45, 25, 10), (0, self.tilesize - 3, self.tilesize, 3))
+            # Folha da porta aberta para fora (inclinada na parte superior da passagem)
+            pygame.draw.polygon(surface, (115, 65, 28), [(4, 3), (self.tilesize - 2, 0), (self.tilesize - 2, 8), (4, 10)])
+            pygame.draw.polygon(surface, (45, 25, 10), [(4, 3), (self.tilesize - 2, 0), (self.tilesize - 2, 8), (4, 10)], 1)
+            pygame.draw.circle(surface, (235, 195, 55), (self.tilesize - 6, 5), 2)
+        else:
+            surface = self.criar_textura_chao()
+            pygame.draw.rect(surface, (45, 25, 10), (0, 0, self.tilesize, 3))
+            pygame.draw.rect(surface, (45, 25, 10), (self.tilesize - 3, 0, 3, self.tilesize))
+            pygame.draw.polygon(surface, (115, 65, 28), [(0, 0), (8, 4), (8, self.tilesize - 2), (0, self.tilesize)])
+            pygame.draw.polygon(surface, (45, 25, 10), [(0, 0), (8, 4), (8, self.tilesize - 2), (0, self.tilesize)], 1)
+            pygame.draw.circle(surface, (235, 195, 55), (6, self.tilesize // 2), 2)
+        return surface
+
     def criar_textura_estante(self, letra=""):
         surface = pygame.Surface((self.tilesize, self.tilesize))
         surface.fill(self.COR_ESTANTE)
@@ -398,19 +443,24 @@ class BibliotecaGerador:
             i += 1
 
         if letra:
-            pygame.draw.rect(surface, (255, 215, 0), (0, 0, self.tilesize, self.tilesize), 2)
-            font = pygame.font.SysFont("Courier New", 18, bold=True)
-            txt = font.render(letra, True, (255, 215, 0))
+            placa_rect = pygame.Rect(6, 6, self.tilesize - 12, self.tilesize - 12)
+            pygame.draw.rect(surface, (35, 20, 10), placa_rect)
+            pygame.draw.rect(surface, (210, 180, 110), placa_rect, 1)
+            font = pygame.font.SysFont("Courier New", 14, bold=True)
+            txt = font.render(letra, True, (245, 230, 180))
             surface.blit(txt, (self.tilesize//2 - txt.get_width()//2, self.tilesize//2 - txt.get_height()//2))
 
         return surface
 
-    def gerar_cenario_completo(self, map_data, width, height):
+    def gerar_cenario_completo(self, map_data, width, height, secoes=None):
         cenario = pygame.Surface((width, height))
+        if secoes is None:
+            secoes = {}
         
         tile_chao = self.criar_textura_chao()
         tile_parede = self.criar_textura_parede()
         tile_estante_padrao = self.criar_textura_estante()
+        tile_porta = self.criar_textura_porta()
 
         for row_idx, row in enumerate(map_data):
             for col_idx, tile in enumerate(row):
@@ -420,17 +470,14 @@ class BibliotecaGerador:
 
                 if tile == 2:
                     cenario.blit(tile_parede, (x, y))
-                elif tile in [1, 9]:
-                    letter = ""
-                    if col_idx == 12 and row_idx == 11: letter = "I"
-                    elif col_idx == 26 and row_idx == 7: letter = "F"
-                    elif col_idx == 2 and row_idx == 2: letter = "R"
-                    elif col_idx == 16 and row_idx == 21: letter = "N"
-                    
+                elif tile == 1:
+                    letter = secoes.get((col_idx, row_idx), "")
                     if letter:
                         tile_esp = self.criar_textura_estante(letter)
                         cenario.blit(tile_esp, (x, y))
                     else:
                         cenario.blit(tile_estante_padrao, (x, y))
+                elif tile in [4, 9]:
+                    cenario.blit(tile_porta, (x, y))
 
         return cenario

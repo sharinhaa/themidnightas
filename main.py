@@ -4,7 +4,6 @@ import random
 import copy
 from config import *
 from sprites import *
-from introd import IntroManager 
 
 class Game:
     def __init__(self):
@@ -17,16 +16,14 @@ class Game:
         self.running = True
 
         self.original_map_data = copy.deepcopy(map_data)
-
-        gerador = BibliotecaGerador(tilesize)
-        self.cenario_bg = gerador.gerar_cenario_completo(self.original_map_data, width, height)
+        self.gerador = BibliotecaGerador(tilesize)
 
         self.font_title = pygame.font.SysFont("Courier New", 32, bold=True)
         self.font_subtitle = pygame.font.SysFont("Arial", 22, bold=True)
         self.font_hud = pygame.font.SysFont("Arial", 18, bold=True)
         self.font_menu = pygame.font.SysFont("Arial", 16, bold=True)
 
-        # --- CARREGAMENTO DOS FUNDOS (Menu, Vitória e Derrota) ---
+        # CARREGAMENTO DOS FUNDOS (Menu, Vitória e Derrota) 
         try:
             self.menu_bg = pygame.image.load("imagens/menu_bg.png").convert()
             self.menu_bg = pygame.transform.scale(self.menu_bg, (width, height))
@@ -48,11 +45,14 @@ class Game:
             self.derrota_bg = pygame.image.load("imagens/game_over.png").convert()
             self.derrota_bg = pygame.transform.scale(self.derrota_bg, (width, height))
         except (pygame.error, FileNotFoundError):
-            try:
-                self.derrota_bg = pygame.image.load("imagens/game_over.png").convert()
-                self.derrota_bg = pygame.transform.scale(self.derrota_bg, (width, height))
-            except (pygame.error, FileNotFoundError):
-                self.derrota_bg = None
+            self.derrota_bg = None
+
+        # CARREGAMENTO DA IMAGEM DO GUARDIÃO DA SABEDORIA (EASTER EGG)
+        try:
+            img = pygame.image.load("imagens/Guardião_da_Sabedoria.png").convert_alpha()
+            self.guardiao_img = pygame.transform.scale(img, (170, 226))
+        except (pygame.error, FileNotFoundError):
+            self.guardiao_img = None
 
         self.state = 'MENU'
         self.menu_index = 0
@@ -64,6 +64,8 @@ class Game:
         self.total_papers_needed = 5
         self.exit_unlocked = False 
         
+        self.secoes_mapa = {}
+        self.letras_coords = {}
         self.pistas_coletadas = set()
         self.easter_egg_sequence = []
         self.correct_sequence = ["I", "F", "R", "N"]
@@ -71,9 +73,46 @@ class Game:
         self.msg_feedback = ""
         self.msg_timer = 0
 
+    def mapear_blocos_estantes(self, grid):
+        """Agrupa blocos conectados e ordena de A até Z seguindo a leitura natural (por fileira e coluna)."""
+        visitados = set()
+        blocos = []
+
+        for row in range(len(grid)):
+            for col in range(len(grid[0])):
+                if grid[row][col] == 1 and (col, row) not in visitados:
+                    fila = deque([(col, row)])
+                    visitados.add((col, row))
+                    while fila:
+                        c, r = fila.popleft()
+                        for dc, dr in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                            nc, nr = c + dc, r + dr
+                            if 0 <= nr < len(grid) and 0 <= nc < len(grid[0]):
+                                if grid[nr][nc] == 1 and (nc, nr) not in visitados:
+                                    visitados.add((nc, nr))
+                                    fila.append((nc, nr))
+                    blocos.append((col, row))
+
+        blocos.sort(key=lambda pos: (pos[1] // 2, pos[0]))
+
+        secoes = {}
+        letras_coords = {}
+        alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+        for idx, (col, row) in enumerate(blocos):
+            if idx < len(alfabeto):
+                letra = alfabeto[idx]
+                secoes[(col, row)] = letra
+                letras_coords[letra] = (col, row)
+
+        return secoes, letras_coords
+
     def init_level(self):
         global map_data
         map_data = copy.deepcopy(self.original_map_data)
+        
+        self.secoes_mapa, self.letras_coords = self.mapear_blocos_estantes(map_data)
+        self.cenario_bg = self.gerador.gerar_cenario_completo(map_data, width, height, self.secoes_mapa)
 
         self.all_sprites = pygame.sprite.Group()
         self.walls = pygame.sprite.Group()
@@ -81,9 +120,10 @@ class Game:
         self.background_tiles = pygame.sprite.Group()
         self.quadro_group = pygame.sprite.Group()
         
-        self.spawn_pos = (28, 16)
-        self.librarian_spawn_pos = (28, 13)
+        self.spawn_pos = (26, 16)
+        self.librarian_spawn_pos = (27, 11)
         self.exit_rect = None
+        self.exit_coords = None
         self.quadro_pos_coords = None
 
         self.pistas_spawned = False
@@ -91,7 +131,6 @@ class Game:
         self.easter_egg_sequence = []
         self.msg_feedback = ""
 
-        # Mapeia os blocos do config.py
         for row, tiles in enumerate(map_data):
             for col, tile in enumerate(tiles):
                 if tile in [0, 3, 4, 6, 7, 8]:
@@ -99,41 +138,25 @@ class Game:
                     bg.image.set_alpha(0) 
                     self.background_tiles.add(bg)
 
-                if tile in [1, 2, 9]:
-                    letter = ""
-                    if col == 12 and row == 11: letter = "I"   
-                    elif col == 26 and row == 7: letter = "F" 
-                    elif col == 2 and row == 2: letter = "R" 
-                    elif col == 21 and row == 16: letter = "N" 
-
+                if tile in [1, 2, 4, 5, 9]:
+                    letter = self.secoes_mapa.get((col, row), "")
                     obs = Obstaculo(col, row, tile, letter)
-                    if letter == "":
-                        obs.image.set_alpha(0)
-                        
                     self.walls.add(obs)
                     self.all_sprites.add(obs)
-                elif tile == 3:
+
+                if tile == 3:
                     self.spawn_pos = (col, row)
                 elif tile == 4:
+                    self.exit_coords = (col, row)
                     self.exit_rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
+                elif tile == 6:
+                    folha = ItemColetavel(col, row, em_cima_de_móvel=False)
+                    self.papers.add(folha)
+                    self.all_sprites.add(folha)
                 elif tile == 7:
                     self.librarian_spawn_pos = (col, row)
                 elif tile == 8:
                     self.quadro_pos_coords = (col, row)
-
-        # Folhas normais
-        posicoes_mesas_folhas = [
-            (11, 1),   
-            (3, 8),    
-            (19, 8),    
-            (21, 5),   
-            (8, 15)   
-        ]
-
-        for cx, cy in posicoes_mesas_folhas:
-            folha = ItemColetavel(cx, cy, em_cima_de_móvel=True)
-            self.papers.add(folha)
-            self.all_sprites.add(folha)
 
         self.player = Player(self, self.spawn_pos[0], self.spawn_pos[1])
         self.all_sprites.add(self.player)
@@ -142,23 +165,43 @@ class Game:
         self.all_sprites.add(self.librarian)
 
     def spawn_pistas_easter_egg(self):
-        pistas_estantes = [
-            ("I", 8, 16),    
-            ("F", 6, 1),   
-            ("R", 28, 2),   
-            ("N", 12, 9)
+        estantes_disponiveis = [
+            letra for letra in self.letras_coords.keys()
+            if letra not in self.correct_sequence
         ]
 
-        for letra, cx, cy in pistas_estantes:
-            pista = ItemColetavel(cx, cy, is_easter_egg=True, letter_hint=letra, em_cima_de_móvel=True)
+        if len(estantes_disponiveis) >= len(self.correct_sequence):
+            estantes_esconderijo = random.sample(estantes_disponiveis, len(self.correct_sequence))
+        else:
+            estantes_esconderijo = list(self.letras_coords.keys())[:len(self.correct_sequence)]
+
+        for letra_pista, estante_alvo in zip(self.correct_sequence, estantes_esconderijo):
+            cx, cy = self.letras_coords[estante_alvo]
+            pista = ItemColetavel(cx, cy, is_easter_egg=True, letter_hint=letra_pista, em_cima_de_móvel=True)
+            pista.image.set_alpha(0)
             self.papers.add(pista)
             self.all_sprites.add(pista)
         
         self.pistas_spawned = True
 
+    def unlock_exit_door(self):
+        """Abre a porta de saída na parede para fora da biblioteca e libera a passagem."""
+        self.exit_unlocked = True
+        tile_porta_saida_aberta = self.gerador.criar_textura_porta_aberta(para_fora=True)
+
+        if self.exit_coords:
+            col, row = self.exit_coords
+            self.cenario_bg.blit(tile_porta_saida_aberta, (col * tilesize, row * tilesize))
+
+        for wall in list(self.walls):
+            if wall.tile_type == 4:
+                wall.kill()
+
+        self.set_feedback("PORTA DE SAÍDA ABERTA!")
+
     def set_feedback(self, msg):
         self.msg_feedback = msg
-        self.msg_timer = 180
+        self.msg_timer = 210
 
     def trigger_catch(self):
         self.lives -= 1
@@ -175,10 +218,13 @@ class Game:
             self.librarian.choose_next_cell()
 
     def trigger_easter_egg_unlock(self):
+        tile_porta_aberta = self.gerador.criar_textura_porta_aberta(para_fora=False)
+
         for row in range(len(map_data)):
             for col in range(len(map_data[0])):
                 if map_data[row][col] == 9:
                     map_data[row][col] = 0
+                    self.cenario_bg.blit(tile_porta_aberta, (col * tilesize, row * tilesize))
 
         for wall in list(self.walls):
             if wall.tile_type == 9:
@@ -187,7 +233,6 @@ class Game:
         if self.quadro_pos_coords:
             col, row = self.quadro_pos_coords
             self.quadro_secreto = QuadroSecreto(col, row)
-            self.quadro_secreto.image.set_alpha(0)  
             self.quadro_group.add(self.quadro_secreto)
             self.all_sprites.add(self.quadro_secreto)
         
@@ -196,44 +241,54 @@ class Game:
     def check_bookshelf_interaction(self):
         player_box = self.player.hitbox.inflate(32, 32)
         
-        # 1. Coleta de Folhas (Normais ou Pistas Easter Egg)
+        # 1. Coleta de Folhas (Normais no chão ou Pistas escondidas dentro das estantes)
         for paper in list(self.papers):
             if player_box.colliderect(paper.rect):
                 if getattr(paper, 'is_easter_egg', False):
                     self.score += 50
-                    if hasattr(paper, 'letter_hint'):
-                        self.pistas_coletadas.add(paper.letter_hint)
+                    letra_pista = getattr(paper, 'letter_hint', '?')
+                    self.pistas_coletadas.add(letra_pista)
                     
                     qtd_pistas = len(self.pistas_coletadas)
-                    self.set_feedback(f"PISTA ENCONTRADA! ({qtd_pistas}/4)")
+                    if qtd_pistas >= len(self.correct_sequence):
+                        self.set_feedback(f"Papel [{letra_pista}] encontrado! (4/4) Agora siga a ordem nas estantes!")
+                    else:
+                        self.set_feedback(f"Você achou um papel escondido com a letra [{letra_pista}]! ({qtd_pistas}/4)")
                 else:
                     self.papers_collected += 1
                     self.score += 100
                     if self.papers_collected >= self.total_papers_needed:
-                        self.exit_unlocked = True 
+                        if not self.exit_unlocked:
+                            self.unlock_exit_door()
                         if not self.pistas_spawned:
                             self.spawn_pistas_easter_egg()
                 
                 paper.kill()
                 return
 
-        # 2. Ativação Sequencial das Estantes (I -> F -> R -> N)
+        # 2. Exploração das Estantes e Ativação Secreta (Só ativa após coletar as 4 pistas)
         for wall in self.walls:
             if hasattr(wall, 'letter_id') and wall.letter_id:
-                if player_box.colliderect(wall.rect):
+                if player_box.colliderect(wall.hitbox):
+                    letra = wall.letter_id
+
+                    if len(self.pistas_coletadas) < len(self.correct_sequence):
+                        self.set_feedback(f"Estante [{letra}]")
+                        return
+
                     proxima_esperada = self.correct_sequence[len(self.easter_egg_sequence)]
                     
-                    if wall.letter_id == proxima_esperada:
-                        self.easter_egg_sequence.append(wall.letter_id)
+                    if letra == proxima_esperada:
+                        self.easter_egg_sequence.append(letra)
                         qtd = len(self.easter_egg_sequence)
                         
                         if self.easter_egg_sequence == self.correct_sequence:
                             self.trigger_easter_egg_unlock()
                         else:
-                            self.set_feedback(f"ESTANTE ATIVADA: {wall.letter_id} ({qtd}/4)")
+                            self.set_feedback(f"Estante [{letra}] (*clique* {qtd}/4)")
                     else:
                         self.easter_egg_sequence = []
-                        self.set_feedback("SEQUÊNCIA INCORRETA! RESETADA.")
+                        self.set_feedback(f"Estante [{letra}]")
                     return
 
     def handle_events(self):
@@ -266,15 +321,6 @@ class Game:
                         self.state = 'PLAYING'
                     elif event.key == pygame.K_ESCAPE:
                         self.state = 'MENU'
-
-                elif self.state == 'INTRO':
-                    if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_RIGHT, pygame.K_d]:
-                        self.audio.play_sfx("paper")
-                        completed = self.intro.next_page()
-                        if completed:
-                            self.start_gameplay()
-                    elif event.key == pygame.K_ESCAPE:
-                        self.start_gameplay()
 
                 elif self.state == 'PLAYING':
                     if event.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e]:
@@ -331,36 +377,52 @@ class Game:
                 pygame.draw.rect(self.screen, dark_gray, cad_rect)
                 pygame.draw.line(self.screen, red, (cad_rect.left, cad_rect.top), (cad_rect.right, cad_rect.bottom), 2)
 
-        if self.exit_unlocked and self.exit_rect:
-            pygame.draw.rect(self.screen, blue, self.exit_rect, 2)
-
-    def draw_end_screen(self, is_victory):
-        bg_image = self.vitoria_bg if is_victory else self.derrota_bg
-        
-        if bg_image:
-            self.screen.blit(bg_image, (0, 0))
+    def draw_victory_screen(self):
+        """Tela de VITÓRIA — mantém as posições originais da arte de vitória."""
+        if self.vitoria_bg:
+            self.screen.blit(self.vitoria_bg, (0, 0))
         else:
             self.screen.fill((15, 15, 25))
-            color = green if is_victory else red
-            title = "TRABALHO RECUPERADO!" if is_victory else "EXPULSO DA BIBLIOTECA!"
-            t_surf = self.font_title.render(title, True, color)
+            t_surf = self.font_title.render("TRABALHO RECUPERADO!", True, green)
             self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
 
-        # 1. PONTUAÇÃO (Abaixo da linha decorativa central)
+        # Pontuação da Vitória
         score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
-        score_rect = score_surf.get_rect(center=(width // 2 + 16, 315))
+        score_rect = score_surf.get_rect(center=(width // 2 + 16, 415))
         self.screen.blit(score_surf, score_rect)
 
-        # 2. CAIXA ESQUERDA: [R] NOVO JOGO
-        centro_caixa_esquerda = (355, 442)
+        # Caixa Esquerda: [R] NOVO JOGO
         r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
-        r_rect = r_surf.get_rect(center=centro_caixa_esquerda)
+        r_rect = r_surf.get_rect(center=(385, 501))
         self.screen.blit(r_surf, r_rect)
 
-        # 3. CAIXA DIREITA: [Q] MENU
-        centro_caixa_direita = (632, 442)
+        # Caixa Direita: [Q] MENU
         q_surf = self.font_hud.render("[Q] MENU", True, white)
-        q_rect = q_surf.get_rect(center=centro_caixa_direita)
+        q_rect = q_surf.get_rect(center=(648, 501))
+        self.screen.blit(q_surf, q_rect)
+
+    def draw_gameover_screen(self):
+        """Tela de DERROTA (Game Over) — coordenadas independentes para a imagem game_over.png."""
+        if self.derrota_bg:
+            self.screen.blit(self.derrota_bg, (0, 0))
+        else:
+            self.screen.fill((15, 15, 25))
+            t_surf = self.font_title.render("EXPULSO DA BIBLIOTECA!", True, red)
+            self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
+
+        # Pontuação da Derrota (acima das caixas)
+        score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
+        score_rect = score_surf.get_rect(center=(width // 2, 355))
+        self.screen.blit(score_surf, score_rect)
+
+        # Caixa Esquerda da Derrota: [R] NOVO JOGO
+        r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
+        r_rect = r_surf.get_rect(center=(365, 452))
+        self.screen.blit(r_surf, r_rect)
+
+        # Caixa Direita da Derrota: [Q] MENU
+        q_surf = self.font_hud.render("[Q] MENU", True, white)
+        q_rect = q_surf.get_rect(center=(645, 452))
         self.screen.blit(q_surf, q_rect)
 
     def draw(self):
@@ -417,17 +479,25 @@ class Game:
             self.draw_hud()
 
         elif self.state == 'VICTORY':
-            self.draw_end_screen(is_victory=True)
+            self.draw_victory_screen()
 
         elif self.state == 'GAMEOVER':
-            self.draw_end_screen(is_victory=False)
+            self.draw_gameover_screen()
 
         elif self.state == 'EASTER_EGG':
             self.screen.fill((25, 15, 45))
-            pygame.draw.rect(self.screen, yellow, (width//2 - 90, 80, 180, 200), 5)
-            pygame.draw.circle(self.screen, purple, (width//2, 170), 50)
 
-            t1 = self.font_title.render("O GUARDIÃO DO CONHECIMENTO", True, yellow)
+            quadro_w, quadro_h = 182, 238
+            quadro_x = width // 2 - quadro_w // 2
+            quadro_y = 55
+            pygame.draw.rect(self.screen, yellow, (quadro_x, quadro_y, quadro_w, quadro_h), 5)
+
+            if self.guardiao_img:
+                self.screen.blit(self.guardiao_img, (quadro_x + 6, quadro_y + 6))
+            else:
+                pygame.draw.circle(self.screen, purple, (width // 2, quadro_y + quadro_h // 2), 50)
+
+            t1 = self.font_title.render("O GUARDIÃO DA SABEDORIA", True, yellow)
             t2 = self.font_hud.render('"Dizem que ele sabe quando você usa ChatGPT..."', True, white)
 
             self.screen.blit(t1, (width//2 - t1.get_width()//2, 320))
