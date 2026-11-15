@@ -348,17 +348,17 @@ class Game:
 
         # 1. PONTUAÇÃO (Abaixo da linha decorativa central)
         score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
-        score_rect = score_surf.get_rect(center=(width // 2 + 16, 315))
+        score_rect = score_surf.get_rect(center=(width // 2 + 16, 395))
         self.screen.blit(score_surf, score_rect)
 
         # 2. CAIXA ESQUERDA: [R] NOVO JOGO
-        centro_caixa_esquerda = (355, 442)
+        centro_caixa_esquerda = (385, 495)
         r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
         r_rect = r_surf.get_rect(center=centro_caixa_esquerda)
         self.screen.blit(r_surf, r_rect)
 
         # 3. CAIXA DIREITA: [Q] MENU
-        centro_caixa_direita = (632, 442)
+        centro_caixa_direita = (648, 495)
         q_surf = self.font_hud.render("[Q] MENU", True, white)
         q_rect = q_surf.get_rect(center=centro_caixa_direita)
         self.screen.blit(q_surf, q_rect)
