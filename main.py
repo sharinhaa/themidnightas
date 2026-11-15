@@ -20,7 +20,9 @@ class Game:
 
         self.font_title = pygame.font.SysFont("Courier New", 32, bold=True)
         self.font_subtitle = pygame.font.SysFont("Arial", 22, bold=True)
-        self.font_hud = pygame.font.SysFont("Arial", 18, bold=True)
+        self.font_ui = pygame.font.SysFont("Arial", 18, bold=True)
+        self.font_hud = pygame.font.SysFont("Courier New", 15, bold=True)
+        self.font_hud_small = pygame.font.SysFont("Courier New", 13, bold=True)
         self.font_menu = pygame.font.SysFont("Arial", 16, bold=True)
 
         # CARREGAMENTO DOS FUNDOS (Menu, Vitória e Derrota) 
@@ -293,17 +295,14 @@ class Game:
             if wall.tile_type == 9:
                 wall.kill()
 
-        # Teias de aranha nos cantos da sala secreta
         self.decorar_teias_sala_secreta()
 
-        # Quadro Secreto aparece ao abrir a porta
         if self.quadro_pos_coords:
             col, row = self.quadro_pos_coords
             self.quadro_secreto = QuadroSecreto(col, row)
             self.quadro_group.add(self.quadro_secreto)
             self.all_sprites.add(self.quadro_secreto)
 
-        # Totem de Coleção aparece junto com o quadro ao abrir a porta
         if self.totem_spawn_coords:
             tcol, trow = self.totem_spawn_coords
             self.totem_sprite = TotemColecao(tcol, trow)
@@ -321,7 +320,7 @@ class Game:
     def check_bookshelf_interaction(self):
         player_box = self.player.hitbox.inflate(32, 32)
         
-        # 0. Coleta da Chave Dourada na sala do bibliotecário (só existe após o ritual)
+        # 0. Coleta da Chave Dourada na sala do bibliotecário
         if self.chave_sprite and self.chave_sprite.alive():
             if player_box.colliderect(self.chave_sprite.rect):
                 self.has_secret_key = True
@@ -347,7 +346,7 @@ class Game:
                     self.set_feedback("Uma porta trancada por um ritual antigo...")
                 return
 
-        # 2. Coleta de Folhas (Normais no chão ou Pistas escondidas dentro das estantes)
+        # 2. Coleta de Folhas
         for paper in list(self.papers):
             if player_box.colliderect(paper.rect):
                 if getattr(paper, 'is_easter_egg', False):
@@ -372,7 +371,7 @@ class Game:
                 paper.kill()
                 return
 
-        # 3. Exploração das Estantes e Ativação do Ritual (Só ativa após coletar as 4 pistas)
+        # 3. Exploração das Estantes e Ativação do Ritual
         for wall in self.walls:
             if hasattr(wall, 'letter_id') and wall.letter_id:
                 if player_box.colliderect(wall.hitbox):
@@ -485,44 +484,118 @@ class Game:
                     self.score += 300
                     self.state = "VICTORY"
 
+    def desenhar_placa_hud(self, rect):
+        """Desenha uma placa de mogno com moldura dourada e rebites para combinar com a biblioteca."""
+        sombra = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(sombra, (10, 5, 2, 140), (0, 0, rect.width, rect.height), border_radius=4)
+        self.screen.blit(sombra, (rect.x + 2, rect.y + 2))
+
+        pygame.draw.rect(self.screen, (32, 17, 7), rect, border_radius=4)
+        pygame.draw.rect(self.screen, (48, 26, 12), rect.inflate(-4, -4), border_radius=3)
+        pygame.draw.rect(self.screen, (195, 155, 65), rect, 1, border_radius=4)
+
+        for rx, ry in [(rect.left + 3, rect.top + 3),
+                       (rect.right - 4, rect.top + 3),
+                       (rect.left + 3, rect.bottom - 4),
+                       (rect.right - 4, rect.bottom - 4)]:
+            self.screen.set_at((rx, ry), (245, 215, 115))
+
+    def desenhar_livro_vida(self, x, y, ativo=True):
+        """Desenha um livro encadernado clássico (ativo) ou gasto/apagado (perdido)."""
+        if ativo:
+            pygame.draw.rect(self.screen, (135, 32, 38), (x, y, 16, 20), border_radius=2)
+            pygame.draw.rect(self.screen, (95, 20, 25), (x, y, 4, 20), border_top_left_radius=2, border_bottom_left_radius=2)
+            pygame.draw.line(self.screen, (235, 222, 190), (x + 14, y + 2), (x + 14, y + 17), 1)
+            pygame.draw.rect(self.screen, (220, 180, 75), (x, y, 16, 20), 1, border_radius=2)
+            pygame.draw.rect(self.screen, (235, 195, 85), (x + 6, y + 5, 6, 4))
+            pygame.draw.line(self.screen, (220, 180, 75), (x + 6, y + 13), (x + 11, y + 13), 1)
+        else:
+            pygame.draw.rect(self.screen, (45, 35, 30), (x, y, 16, 20), border_radius=2)
+            pygame.draw.rect(self.screen, (85, 65, 55), (x, y, 16, 20), 1, border_radius=2)
+            pygame.draw.line(self.screen, (165, 45, 45), (x + 3, y + 4), (x + 12, y + 15), 2)
+            pygame.draw.line(self.screen, (165, 45, 45), (x + 12, y + 4), (x + 3, y + 15), 2)
+
     def draw_hud(self):
-        txt = f"PONTOS: {self.score:04d}   FOLHAS: {self.papers_collected}/{self.total_papers_needed}"
-        self.screen.blit(self.font_hud.render(txt, True, white), (15, 8))
+        cor_ouro_texto = (248, 228, 168)
+        cor_pergaminho = (242, 232, 205)
 
-        radar_text, radar_color, _ = self.librarian.get_radar_status()
-        self.screen.blit(self.font_hud.render(radar_text, True, radar_color), (460, 8))
+        # --- 1. PLACA ESQUERDA: PONTOS E FOLHAS ---
+        placa_esq = pygame.Rect(10, 4, 306, 26)
+        self.desenhar_placa_hud(placa_esq)
 
-        # Ícone da Relíquia/Totem de Coleção no HUD quando coletado
+        pygame.draw.circle(self.screen, (235, 190, 55), (24, 17), 6)
+        pygame.draw.circle(self.screen, (150, 105, 20), (24, 17), 6, 1)
+        pygame.draw.circle(self.screen, (255, 240, 170), (22, 15), 1)
+
+        pts_surf = self.font_hud.render(f"PTS:{self.score:04d}", True, cor_ouro_texto)
+        self.screen.blit(pts_surf, (35, 9))
+
+        pygame.draw.line(self.screen, (130, 95, 40), (144, 8), (144, 25), 1)
+
+        pygame.draw.rect(self.screen, (240, 232, 210), (154, 10, 11, 14), border_radius=1)
+        pygame.draw.rect(self.screen, (140, 105, 55), (154, 10, 11, 14), 1)
+        pygame.draw.line(self.screen, (90, 115, 165), (156, 14), (162, 14), 1)
+        pygame.draw.line(self.screen, (90, 115, 165), (156, 18), (161, 18), 1)
+
+        cor_folhas = (140, 235, 130) if self.papers_collected >= self.total_papers_needed else cor_pergaminho
+        folhas_surf = self.font_hud.render(f"FOLHAS:{self.papers_collected}/{self.total_papers_needed}", True, cor_folhas)
+        self.screen.blit(folhas_surf, (171, 9))
+
+        # --- 2. PLACA CENTRAL: RADAR DO BIBLIOTECÁRIO ---
+        radar_text, radar_color, radar_ativo = self.librarian.get_radar_status()
+        if not radar_ativo:
+            radar_color = (185, 172, 148)
+
+        placa_centro = pygame.Rect(348, 4, 282, 26)
+        self.desenhar_placa_hud(placa_centro)
+
+        led_x, led_y = 363, 17
+        pygame.draw.circle(self.screen, (20, 12, 6), (led_x, led_y), 6)
+        pygame.draw.circle(self.screen, radar_color if radar_ativo else (95, 135, 95), (led_x, led_y), 4)
+        pygame.draw.circle(self.screen, (210, 175, 80), (led_x, led_y), 6, 1)
+
+        radar_surf = self.font_hud_small.render(radar_text, True, radar_color)
+        self.screen.blit(radar_surf, (376, 10))
+
+        # --- 3. PLACA DIREITA: RELÍQUIA, CHAVE E LIVROS DE VIDA ---
+        placa_dir = pygame.Rect(width - 178, 4, 168, 26)
+        self.desenhar_placa_hud(placa_dir)
+
+        tx, ty = width - 162, 17
         if self.has_totem:
-            tx, ty = width - 184, 17
-            pygame.draw.ellipse(self.screen, (240, 190, 45), (tx - 5, ty - 6, 10, 12))
-            pygame.draw.rect(self.screen, (240, 190, 45), (tx - 4, ty + 6, 8, 3))
+            pygame.draw.ellipse(self.screen, (240, 190, 45), (tx - 5, ty - 6, 10, 11))
+            pygame.draw.rect(self.screen, (240, 190, 45), (tx - 4, ty + 5, 8, 2))
             pygame.draw.circle(self.screen, (255, 55, 75), (tx - 2, ty - 2), 1)
             pygame.draw.circle(self.screen, (255, 55, 75), (tx + 2, ty - 2), 1)
+        else:
+            pygame.draw.ellipse(self.screen, (65, 42, 24), (tx - 5, ty - 6, 10, 11), 1)
 
-        # Ícone da Chave Dourada no HUD quando coletada
+        kx, ky = width - 142, 17
         if self.has_secret_key:
-            kx, ky = width - 152, 18
-            pygame.draw.circle(self.screen, (245, 200, 45), (kx, ky), 5, 2)
-            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 4, ky - 1, 11, 3))
-            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 10, ky + 2, 2, 3))
-            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 13, ky + 2, 2, 4))
+            pygame.draw.circle(self.screen, (245, 200, 45), (kx, ky), 4, 2)
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 4, ky - 1, 9, 2))
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 9, ky + 1, 2, 3))
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 12, ky + 1, 2, 3))
+        else:
+            pygame.draw.circle(self.screen, (65, 42, 24), (kx, ky), 4, 1)
+            pygame.draw.line(self.screen, (65, 42, 24), (kx + 4, ky), (kx + 12, ky), 1)
 
-        if self.msg_timer > 0:
-            lbl = self.font_hud.render(self.msg_feedback, True, yellow)
-            self.screen.blit(lbl, (width // 2 - lbl.get_width() // 2, height - 35))
+        pygame.draw.line(self.screen, (130, 95, 40), (width - 118, 8), (width - 118, 25), 1)
 
         for i in range(3):
-            cad_rect = pygame.Rect(width - 110 + (i * 26), 8, 16, 20)
-            if i < self.lives:
-                pygame.draw.rect(self.screen, white, cad_rect)
-                pygame.draw.rect(self.screen, blue, (cad_rect.x+2, cad_rect.y+2, 12, 16), 1)
-            else:
-                pygame.draw.rect(self.screen, dark_gray, cad_rect)
-                pygame.draw.line(self.screen, red, (cad_rect.left, cad_rect.top), (cad_rect.right, cad_rect.bottom), 2)
+            lx = width - 106 + (i * 28)
+            self.desenhar_livro_vida(lx, 7, ativo=(i < self.lives))
+
+        # --- 4. FAIXA INFERIOR DE MENSAGEM ---
+        if self.msg_timer > 0 and self.msg_feedback:
+            lbl = self.font_hud.render(self.msg_feedback, True, cor_ouro_texto)
+            larg_faixa = lbl.get_width() + 36
+            faixa_rect = pygame.Rect(width // 2 - larg_faixa // 2, height - 36, larg_faixa, 28)
+            self.desenhar_placa_hud(faixa_rect)
+            self.screen.blit(lbl, (faixa_rect.centerx - lbl.get_width() // 2, faixa_rect.centery - lbl.get_height() // 2))
 
     def draw_victory_screen(self):
-        """Tela de VITÓRIA — mantém as posições originais da arte de vitória."""
+        """Tela de VITÓRIA — fonte original Arial 18 bold."""
         if self.vitoria_bg:
             self.screen.blit(self.vitoria_bg, (0, 0))
         else:
@@ -530,20 +603,20 @@ class Game:
             t_surf = self.font_title.render("TRABALHO RECUPERADO!", True, green)
             self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
 
-        score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
+        score_surf = self.font_ui.render(f"PONTOS: {self.score}", True, yellow)
         score_rect = score_surf.get_rect(center=(width // 2 + 16, 415))
         self.screen.blit(score_surf, score_rect)
 
-        r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
+        r_surf = self.font_ui.render("[R] NOVO JOGO", True, white)
         r_rect = r_surf.get_rect(center=(375, 490))
         self.screen.blit(r_surf, r_rect)
 
-        q_surf = self.font_hud.render("[Q] MENU", True, white)
+        q_surf = self.font_ui.render("[Q] MENU", True, white)
         q_rect = q_surf.get_rect(center=(650, 490))
         self.screen.blit(q_surf, q_rect)
 
     def draw_gameover_screen(self):
-        """Tela de DERROTA (Game Over) — coordenadas independentes para a imagem game_over.png."""
+        """Tela de DERROTA (Game Over) — fonte original Arial 18 bold."""
         if self.derrota_bg:
             self.screen.blit(self.derrota_bg, (0, 0))
         else:
@@ -551,15 +624,15 @@ class Game:
             t_surf = self.font_title.render("EXPULSO DA BIBLIOTECA!", True, red)
             self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
 
-        score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
+        score_surf = self.font_ui.render(f"PONTOS: {self.score}", True, yellow)
         score_rect = score_surf.get_rect(center=(width // 2, 355))
         self.screen.blit(score_surf, score_rect)
 
-        r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
+        r_surf = self.font_ui.render("[R] NOVO JOGO", True, white)
         r_rect = r_surf.get_rect(center=(355, 442))
         self.screen.blit(r_surf, r_rect)
 
-        q_surf = self.font_hud.render("[Q] MENU", True, white)
+        q_surf = self.font_ui.render("[Q] MENU", True, white)
         q_rect = q_surf.get_rect(center=(637, 442))
         self.screen.blit(q_surf, q_rect)
 
@@ -579,7 +652,7 @@ class Game:
                 opt_rect = opt_surf.get_rect(center=(posicoes_x[i], posicao_y))
                 
                 if i == self.menu_index:
-                    seta_surf = self.font_hud.render("▼", True, yellow)
+                    seta_surf = self.font_ui.render("▼", True, yellow)
                     seta_rect = seta_surf.get_rect(center=(posicoes_x[i], posicao_y - 20))
                     self.screen.blit(seta_surf, seta_rect)
                     
@@ -589,9 +662,9 @@ class Game:
             t_surf = self.font_title.render("CRÉDITOS DO JOGO", True, white)
             self.screen.blit(t_surf, (width//2 - t_surf.get_width()//2, 100))
 
-            c1 = self.font_hud.render("Desenvolvido para avaliação do 2º bimestre - IFRN", True, white)
-            c2 = self.font_hud.render("GDD e Mecânicas: estilo arcade stealth", True, light_gray)
-            c3 = self.font_hud.render("Pressione [ESPAÇO] ou [ESC] para retornar", True, yellow)
+            c1 = self.font_ui.render("Desenvolvido para avaliação do 2º bimestre - IFRN", True, white)
+            c2 = self.font_ui.render("GDD e Mecânicas: estilo arcade stealth", True, light_gray)
+            c3 = self.font_ui.render("Pressione [ESPAÇO] ou [ESC] para retornar", True, yellow)
             self.screen.blit(c1, (width//2 - c1.get_width()//2, 220))
             self.screen.blit(c2, (width//2 - c2.get_width()//2, 260))
             self.screen.blit(c3, (width//2 - c3.get_width()//2, 340))
@@ -604,10 +677,10 @@ class Game:
             pygame.draw.circle(self.screen, purple, (width//2, 220), 50)
             pygame.draw.rect(self.screen, white, (width//2 - 25, 195, 50, 50))
 
-            self.screen.blit(self.font_hud.render("Carlos Eugênio", True, white), (width//2 - 55, 360))
-            self.screen.blit(self.font_hud.render("Especialidade: Camuflagem em sombras", True, light_gray), (width//2 - 140, 395))
+            self.screen.blit(self.font_ui.render("Carlos Eugênio", True, white), (width//2 - 55, 360))
+            self.screen.blit(self.font_ui.render("Especialidade: Camuflagem em sombras", True, light_gray), (width//2 - 140, 395))
 
-            inst = self.font_hud.render("Pressione [ENTER] ou [ESPAÇO] para iniciar", True, yellow)
+            inst = self.font_ui.render("Pressione [ENTER] ou [ESPAÇO] para iniciar", True, yellow)
             self.screen.blit(inst, (width//2 - inst.get_width()//2, 480))
 
         elif self.state == 'PLAYING':
@@ -636,11 +709,11 @@ class Game:
                 pygame.draw.circle(self.screen, purple, (width // 2, quadro_y + quadro_h // 2), 50)
 
             t1 = self.font_title.render("O GUARDIÃO DA SABEDORIA", True, yellow)
-            t2 = self.font_hud.render('"Dizem que ele sabe quando você usa ChatGPT..."', True, white)
+            t2 = self.font_ui.render('"Dizem que ele sabe quando você usa ChatGPT..."', True, white)
 
             self.screen.blit(t1, (width//2 - t1.get_width()//2, 320))
             self.screen.blit(t2, (width//2 - t2.get_width()//2, 380))
-            self.screen.blit(self.font_hud.render("Pressione [ESPAÇO] ou [ESC] para retornar", True, light_gray), (width//2 - 170, 460))
+            self.screen.blit(self.font_ui.render("Pressione [ESPAÇO] ou [ESC] para retornar", True, light_gray), (width//2 - 170, 460))
 
         pygame.display.flip()
 
