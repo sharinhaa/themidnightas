@@ -70,6 +70,12 @@ class Game:
         self.easter_egg_sequence = []
         self.correct_sequence = ["I", "F", "R", "N"]
         self.pistas_spawned = False
+        self.key_spawn_coords = (27, 10)
+        self.totem_spawn_coords = (27, 1)
+        self.has_secret_key = False
+        self.has_totem = False
+        self.enigma_resolvido = False
+        self.secret_unlocked = False
         self.msg_feedback = ""
         self.msg_timer = 0
 
@@ -120,25 +126,33 @@ class Game:
         self.background_tiles = pygame.sprite.Group()
         self.quadro_group = pygame.sprite.Group()
         
-        self.spawn_pos = (26, 16)
+        self.spawn_pos = (26, 18)
         self.librarian_spawn_pos = (27, 11)
         self.exit_rect = None
         self.exit_coords = None
         self.quadro_pos_coords = None
+        self.key_spawn_coords = (27, 10)
+        self.totem_spawn_coords = (27, 1)
+        self.chave_sprite = None
+        self.totem_sprite = None
 
         self.pistas_spawned = False
         self.pistas_coletadas.clear()
         self.easter_egg_sequence = []
+        self.has_secret_key = False
+        self.has_totem = False
+        self.enigma_resolvido = False
+        self.secret_unlocked = False
         self.msg_feedback = ""
 
         for row, tiles in enumerate(map_data):
             for col, tile in enumerate(tiles):
-                if tile in [0, 3, 4, 6, 7, 8]:
+                if tile in [0, 3, 4, 6, 7, 8, 12, 13]:
                     bg = ObjetoCenario(col, row, tilesize, tilesize)
                     bg.image.set_alpha(0) 
                     self.background_tiles.add(bg)
 
-                if tile in [1, 2, 4, 5, 9]:
+                if tile in [1, 2, 4, 5, 9, 10]:
                     letter = self.secoes_mapa.get((col, row), "")
                     obs = Obstaculo(col, row, tile, letter)
                     self.walls.add(obs)
@@ -157,6 +171,13 @@ class Game:
                     self.librarian_spawn_pos = (col, row)
                 elif tile == 8:
                     self.quadro_pos_coords = (col, row)
+                elif tile == 11:
+                    porta_auto = PortaAutomatica(self, col, row)
+                    self.all_sprites.add(porta_auto)
+                elif tile == 12:
+                    self.key_spawn_coords = (col, row)
+                elif tile == 13:
+                    self.totem_spawn_coords = (col, row)
 
         self.player = Player(self, self.spawn_pos[0], self.spawn_pos[1])
         self.all_sprites.add(self.player)
@@ -183,6 +204,45 @@ class Game:
             self.all_sprites.add(pista)
         
         self.pistas_spawned = True
+
+    def spawn_secret_key(self):
+        """Faz a Chave Dourada surgir na sala do bibliotecário ao completar o ritual das estantes."""
+        if self.chave_sprite is None and not self.has_secret_key:
+            col, row = self.key_spawn_coords
+            self.chave_sprite = ChaveSecreta(col, row)
+            self.all_sprites.add(self.chave_sprite)
+
+    def decorar_teias_sala_secreta(self):
+        """Desenha teias de aranha nos cantos da sala secreta quando a porta é aberta."""
+        teia_surf = pygame.Surface((4 * tilesize, 2 * tilesize), pygame.SRCALPHA)
+        cor_fio = (225, 225, 235, 130)
+        cor_fio_fino = (210, 210, 225, 95)
+        w, h = teia_surf.get_size()
+
+        # Teia grande no canto superior esquerdo (col=25, row=1)
+        pygame.draw.line(teia_surf, cor_fio, (0, 0), (26, 26), 1)
+        pygame.draw.line(teia_surf, cor_fio, (0, 0), (30, 12), 1)
+        pygame.draw.line(teia_surf, cor_fio, (0, 0), (12, 30), 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (-12, -12, 24, 24), -1.57, 0.0, 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (-22, -22, 44, 44), -1.57, 0.0, 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (-32, -32, 64, 64), -1.57, 0.0, 1)
+
+        # Teia grande no canto superior direito (col=28, row=1)
+        pygame.draw.line(teia_surf, cor_fio, (w - 1, 0), (w - 27, 26), 1)
+        pygame.draw.line(teia_surf, cor_fio, (w - 1, 0), (w - 31, 12), 1)
+        pygame.draw.line(teia_surf, cor_fio, (w - 1, 0), (w - 13, 30), 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (w - 12, -12, 24, 24), 3.14, 4.71, 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (w - 22, -22, 44, 44), 3.14, 4.71, 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (w - 32, -32, 64, 64), 3.14, 4.71, 1)
+
+        # Teias menores nos cantos inferiores (row=2)
+        pygame.draw.line(teia_surf, cor_fio_fino, (0, h - 1), (16, h - 17), 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (-14, h - 14, 28, 28), 0.0, 1.57, 1)
+
+        pygame.draw.line(teia_surf, cor_fio_fino, (w - 1, h - 1), (w - 17, h - 17), 1)
+        pygame.draw.arc(teia_surf, cor_fio_fino, (w - 14, h - 14, 28, 28), 1.57, 3.14, 1)
+
+        self.cenario_bg.blit(teia_surf, (25 * tilesize, 1 * tilesize))
 
     def unlock_exit_door(self):
         """Abre a porta de saída na parede para fora da biblioteca e libera a passagem."""
@@ -218,6 +278,9 @@ class Game:
             self.librarian.choose_next_cell()
 
     def trigger_easter_egg_unlock(self):
+        if self.secret_unlocked:
+            return
+        self.secret_unlocked = True
         tile_porta_aberta = self.gerador.criar_textura_porta_aberta(para_fora=False)
 
         for row in range(len(map_data)):
@@ -230,18 +293,61 @@ class Game:
             if wall.tile_type == 9:
                 wall.kill()
 
+        # Teias de aranha nos cantos da sala secreta
+        self.decorar_teias_sala_secreta()
+
+        # Quadro Secreto aparece ao abrir a porta
         if self.quadro_pos_coords:
             col, row = self.quadro_pos_coords
             self.quadro_secreto = QuadroSecreto(col, row)
             self.quadro_group.add(self.quadro_secreto)
             self.all_sprites.add(self.quadro_secreto)
+
+        # Totem de Coleção aparece junto com o quadro ao abrir a porta
+        if self.totem_spawn_coords:
+            tcol, trow = self.totem_spawn_coords
+            self.totem_sprite = TotemColecao(tcol, trow)
+            self.all_sprites.add(self.totem_sprite)
         
         self.set_feedback("PASSAGEM SECRETA DESBLOQUEADA!")
+
+    def coletar_totem(self):
+        if self.totem_sprite and self.totem_sprite.alive():
+            self.totem_sprite.kill()
+            self.has_totem = True
+            self.score += 500
+            self.set_feedback("RELÍQUIA DA SABEDORIA COLETADA! (+500 PTS)")
 
     def check_bookshelf_interaction(self):
         player_box = self.player.hitbox.inflate(32, 32)
         
-        # 1. Coleta de Folhas (Normais no chão ou Pistas escondidas dentro das estantes)
+        # 0. Coleta da Chave Dourada na sala do bibliotecário (só existe após o ritual)
+        if self.chave_sprite and self.chave_sprite.alive():
+            if player_box.colliderect(self.chave_sprite.rect):
+                self.has_secret_key = True
+                self.score += 100
+                self.chave_sprite.kill()
+                self.set_feedback("Você pegou a Chave Dourada! Vá até a porta secreta!")
+                return
+
+        # 0.5 Coleta do Totem de Coleção na sala secreta
+        if self.totem_sprite and self.totem_sprite.alive():
+            if player_box.colliderect(self.totem_sprite.rect):
+                self.coletar_totem()
+                return
+
+        # 1. Interação direta com a porta da sala secreta (tile 9)
+        for wall in self.walls:
+            if wall.tile_type == 9 and player_box.colliderect(wall.hitbox):
+                if self.enigma_resolvido and self.has_secret_key:
+                    self.trigger_easter_egg_unlock()
+                elif self.enigma_resolvido and not self.has_secret_key:
+                    self.set_feedback("Pegue a Chave Dourada na sala do bibliotecário!")
+                else:
+                    self.set_feedback("Uma porta trancada por um ritual antigo...")
+                return
+
+        # 2. Coleta de Folhas (Normais no chão ou Pistas escondidas dentro das estantes)
         for paper in list(self.papers):
             if player_box.colliderect(paper.rect):
                 if getattr(paper, 'is_easter_egg', False):
@@ -266,7 +372,7 @@ class Game:
                 paper.kill()
                 return
 
-        # 2. Exploração das Estantes e Ativação Secreta (Só ativa após coletar as 4 pistas)
+        # 3. Exploração das Estantes e Ativação do Ritual (Só ativa após coletar as 4 pistas)
         for wall in self.walls:
             if hasattr(wall, 'letter_id') and wall.letter_id:
                 if player_box.colliderect(wall.hitbox):
@@ -276,6 +382,13 @@ class Game:
                         self.set_feedback(f"Estante [{letra}]")
                         return
 
+                    if self.enigma_resolvido:
+                        if self.has_secret_key:
+                            self.set_feedback("Vá até a porta da sala secreta para destrancá-la!")
+                        else:
+                            self.set_feedback("Ritual concluído! A Chave Dourada surgiu na sala do bibliotecário!")
+                        return
+
                     proxima_esperada = self.correct_sequence[len(self.easter_egg_sequence)]
                     
                     if letra == proxima_esperada:
@@ -283,7 +396,9 @@ class Game:
                         qtd = len(self.easter_egg_sequence)
                         
                         if self.easter_egg_sequence == self.correct_sequence:
-                            self.trigger_easter_egg_unlock()
+                            self.enigma_resolvido = True
+                            self.spawn_secret_key()
+                            self.set_feedback("Ritual concluído! A Chave Dourada surgiu na sala do bibliotecário!")
                         else:
                             self.set_feedback(f"Estante [{letra}] (*clique* {qtd}/4)")
                     else:
@@ -348,6 +463,19 @@ class Game:
             if self.msg_timer > 0:
                 self.msg_timer -= 1
 
+            # Destranca a porta secreta automaticamente ao encostar com a chave
+            if self.enigma_resolvido and self.has_secret_key and not self.secret_unlocked:
+                sensor_porta = self.player.hitbox.inflate(16, 16)
+                for wall in self.walls:
+                    if wall.tile_type == 9 and sensor_porta.colliderect(wall.hitbox):
+                        self.trigger_easter_egg_unlock()
+                        break
+
+            # Coleta o Totem de Coleção ao encostar nele
+            if self.totem_sprite and self.totem_sprite.alive():
+                if self.player.hitbox.colliderect(self.totem_sprite.rect):
+                    self.coletar_totem()
+
             if hasattr(self, 'quadro_secreto'):
                 if self.player.hitbox.colliderect(self.quadro_secreto.rect):
                     self.state = "EASTER_EGG"
@@ -362,7 +490,23 @@ class Game:
         self.screen.blit(self.font_hud.render(txt, True, white), (15, 8))
 
         radar_text, radar_color, _ = self.librarian.get_radar_status()
-        self.screen.blit(self.font_hud.render(radar_text, True, radar_color), (500, 8))
+        self.screen.blit(self.font_hud.render(radar_text, True, radar_color), (460, 8))
+
+        # Ícone da Relíquia/Totem de Coleção no HUD quando coletado
+        if self.has_totem:
+            tx, ty = width - 184, 17
+            pygame.draw.ellipse(self.screen, (240, 190, 45), (tx - 5, ty - 6, 10, 12))
+            pygame.draw.rect(self.screen, (240, 190, 45), (tx - 4, ty + 6, 8, 3))
+            pygame.draw.circle(self.screen, (255, 55, 75), (tx - 2, ty - 2), 1)
+            pygame.draw.circle(self.screen, (255, 55, 75), (tx + 2, ty - 2), 1)
+
+        # Ícone da Chave Dourada no HUD quando coletada
+        if self.has_secret_key:
+            kx, ky = width - 152, 18
+            pygame.draw.circle(self.screen, (245, 200, 45), (kx, ky), 5, 2)
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 4, ky - 1, 11, 3))
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 10, ky + 2, 2, 3))
+            pygame.draw.rect(self.screen, (245, 200, 45), (kx + 13, ky + 2, 2, 4))
 
         if self.msg_timer > 0:
             lbl = self.font_hud.render(self.msg_feedback, True, yellow)
@@ -386,19 +530,16 @@ class Game:
             t_surf = self.font_title.render("TRABALHO RECUPERADO!", True, green)
             self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
 
-        # Pontuação da Vitória
         score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
         score_rect = score_surf.get_rect(center=(width // 2 + 16, 415))
         self.screen.blit(score_surf, score_rect)
 
-        # Caixa Esquerda: [R] NOVO JOGO
         r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
-        r_rect = r_surf.get_rect(center=(385, 501))
+        r_rect = r_surf.get_rect(center=(375, 490))
         self.screen.blit(r_surf, r_rect)
 
-        # Caixa Direita: [Q] MENU
         q_surf = self.font_hud.render("[Q] MENU", True, white)
-        q_rect = q_surf.get_rect(center=(648, 501))
+        q_rect = q_surf.get_rect(center=(650, 490))
         self.screen.blit(q_surf, q_rect)
 
     def draw_gameover_screen(self):
@@ -410,19 +551,16 @@ class Game:
             t_surf = self.font_title.render("EXPULSO DA BIBLIOTECA!", True, red)
             self.screen.blit(t_surf, (width // 2 - t_surf.get_width() // 2, 150))
 
-        # Pontuação da Derrota (acima das caixas)
         score_surf = self.font_hud.render(f"PONTOS: {self.score}", True, yellow)
         score_rect = score_surf.get_rect(center=(width // 2, 355))
         self.screen.blit(score_surf, score_rect)
 
-        # Caixa Esquerda da Derrota: [R] NOVO JOGO
         r_surf = self.font_hud.render("[R] NOVO JOGO", True, white)
-        r_rect = r_surf.get_rect(center=(365, 452))
+        r_rect = r_surf.get_rect(center=(355, 442))
         self.screen.blit(r_surf, r_rect)
 
-        # Caixa Direita da Derrota: [Q] MENU
         q_surf = self.font_hud.render("[Q] MENU", True, white)
-        q_rect = q_surf.get_rect(center=(645, 452))
+        q_rect = q_surf.get_rect(center=(637, 442))
         self.screen.blit(q_surf, q_rect)
 
     def draw(self):
