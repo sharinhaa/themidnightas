@@ -1,9 +1,10 @@
-#sprites.py
 import pygame
 import math
 import random
 from config import *
 from collections import deque
+
+SECOES_ESTANTES = {}
 
 class Entidade(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
@@ -23,6 +24,120 @@ class ObjetoCenario(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x = x * tilesize
         self.rect.y = y * tilesize
+
+class ChaveSecreta(pygame.sprite.Sprite):
+    """Chave dourada que surge na sala do bibliotecário após concluir o ritual."""
+    def __init__(self, col, row):
+        super().__init__()
+        self.col = col
+        self.row = row
+        self.timer = 0.0
+        self.base_y = row * tilesize + tilesize // 2
+        self.image = pygame.Surface((26, 26), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(center=(col * tilesize + tilesize // 2, self.base_y))
+        self.desenhar_chave()
+
+    def desenhar_chave(self):
+        self.image.fill((0, 0, 0, 0))
+        pygame.draw.circle(self.image, (255, 225, 80, 65), (13, 13), 12)
+        pygame.draw.circle(self.image, (245, 200, 45), (8, 13), 5, 2)
+        pygame.draw.circle(self.image, (165, 115, 20), (8, 13), 5, 1)
+        pygame.draw.rect(self.image, (245, 200, 45), (12, 12, 10, 3))
+        pygame.draw.rect(self.image, (245, 200, 45), (17, 15, 2, 3))
+        pygame.draw.rect(self.image, (245, 200, 45), (20, 15, 2, 4))
+        self.image.set_at((7, 11), (255, 255, 220))
+
+    def update(self, dt):
+        self.timer += dt * 4.0
+        self.rect.centery = int(self.base_y + math.sin(self.timer) * 2.5)
+
+class TotemColecao(pygame.sprite.Sprite):
+    """Totem/Relíquia de coleção (Coruja Dourada da Sabedoria) que surge na sala secreta ao abrir a porta."""
+    def __init__(self, col, row):
+        super().__init__()
+        self.col = col
+        self.row = row
+        self.timer = 0.0
+        self.image = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
+        self.rect = self.image.get_rect(topleft=(col * tilesize, row * tilesize))
+        self.desenhar_totem(0.0)
+
+    def desenhar_totem(self, offset_y):
+        self.image.fill((0, 0, 0, 0))
+        cx = tilesize // 2
+
+        # Pedestal de pedra/mármore (fixo no chão)
+        pygame.draw.rect(self.image, (75, 70, 90), (7, 24, 18, 6), border_radius=2)
+        pygame.draw.rect(self.image, (130, 125, 150), (9, 21, 14, 4))
+        pygame.draw.line(self.image, (235, 195, 65), (8, 24), (24, 24), 1)
+
+        ty = int(offset_y)
+        # Corpo dourado da Coruja/Totem (sem brilho/halo ao redor)
+        pygame.draw.ellipse(self.image, (240, 190, 45), (cx - 6, 8 + ty, 12, 13))
+        pygame.draw.ellipse(self.image, (175, 120, 20), (cx - 6, 8 + ty, 12, 13), 1)
+        # Orelhas / Coroa do totem
+        pygame.draw.polygon(self.image, (245, 205, 60), [(cx - 5, 9 + ty), (cx - 3, 5 + ty), (cx - 1, 9 + ty)])
+        pygame.draw.polygon(self.image, (245, 205, 60), [(cx + 1, 9 + ty), (cx + 3, 5 + ty), (cx + 5, 9 + ty)])
+        # Olhos de rubi
+        pygame.draw.circle(self.image, (255, 55, 75), (cx - 2, 11 + ty), 1)
+        pygame.draw.circle(self.image, (255, 55, 75), (cx + 2, 11 + ty), 1)
+        # Gema central no peito
+        pygame.draw.polygon(self.image, (90, 220, 255), [(cx, 14 + ty), (cx + 2, 16 + ty), (cx, 18 + ty), (cx - 2, 16 + ty)])
+
+    def update(self, dt):
+        self.timer += dt * 4.5
+        offset_y = math.sin(self.timer) * 2.0
+        self.desenhar_totem(offset_y)
+
+class PortaAutomatica(pygame.sprite.Sprite):
+    """Porta de madeira com o mesmo visual da porta de saída, abrindo automaticamente ao passar."""
+    def __init__(self, game, col, row):
+        super().__init__()
+        self.game = game
+        self.col = col
+        self.row = row
+        self.is_open = False
+
+        self.img_fechada = self.criar_sprite_fechada()
+        self.img_aberta = self.criar_sprite_aberta()
+
+        self.image = self.img_fechada
+        self.rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
+        self.sensor_rect = self.rect.inflate(36, 24)
+
+    def criar_sprite_fechada(self):
+        surf = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
+        surf.fill((45, 25, 10))
+        pygame.draw.rect(surf, (115, 65, 28), (3, 2, tilesize - 6, tilesize - 2))
+        pygame.draw.rect(surf, (75, 40, 15), (6, 5, tilesize - 12, tilesize - 8), 2)
+        pygame.draw.line(surf, (75, 40, 15), (tilesize // 2, 3), (tilesize // 2, tilesize - 2), 1)
+        pygame.draw.rect(surf, (50, 50, 55), (3, 7, 4, 3))
+        pygame.draw.rect(surf, (50, 50, 55), (3, tilesize - 10, 4, 3))
+        pygame.draw.circle(surf, (235, 195, 55), (tilesize - 8, tilesize // 2), 3)
+        pygame.draw.rect(surf, (25, 15, 5), (tilesize - 9, tilesize // 2 + 4, 2, 3))
+        return surf
+
+    def criar_sprite_aberta(self):
+        surf = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
+        pygame.draw.rect(surf, (45, 25, 10), (0, 0, tilesize, 3))
+        pygame.draw.rect(surf, (45, 25, 10), (tilesize - 3, 0, 3, tilesize))
+        pygame.draw.polygon(surf, (115, 65, 28), [(0, 0), (8, 4), (8, tilesize - 2), (0, tilesize)])
+        pygame.draw.polygon(surf, (45, 25, 10), [(0, 0), (8, 4), (8, tilesize - 2), (0, tilesize)], 1)
+        pygame.draw.circle(surf, (235, 195, 55), (6, tilesize // 2), 2)
+        return surf
+
+    def update(self, dt):
+        player_near = self.sensor_rect.colliderect(self.game.player.hitbox)
+        librarian_near = self.sensor_rect.colliderect(self.game.librarian.hitbox)
+
+        if player_near or librarian_near:
+            if not self.is_open:
+                self.is_open = True
+                self.image = self.img_aberta
+        else:
+            if self.is_open:
+                self.is_open = False
+                self.image = self.img_fechada
 
 class Player(Entidade):
     def __init__(self, game, x, y):
@@ -61,9 +176,9 @@ class Player(Entidade):
         self.hitbox.centerx = int(self.x) + tilesize // 2
         
         for wall in self.game.walls:
-            if self.hitbox.colliderect(wall.rect):
-                if self.vx > 0: self.hitbox.right = wall.rect.left
-                elif self.vx < 0: self.hitbox.left = wall.rect.right
+            if self.hitbox.colliderect(wall.hitbox):
+                if self.vx > 0: self.hitbox.right = wall.hitbox.left
+                elif self.vx < 0: self.hitbox.left = wall.hitbox.right
                 self.x = self.hitbox.centerx - tilesize // 2
                 self.vx = 0
 
@@ -71,9 +186,9 @@ class Player(Entidade):
         self.hitbox.centery = int(self.y) + tilesize // 2
         
         for wall in self.game.walls:
-            if self.hitbox.colliderect(wall.rect):
-                if self.vy > 0: self.hitbox.bottom = wall.rect.top
-                elif self.vy < 0: self.hitbox.top = wall.rect.bottom
+            if self.hitbox.colliderect(wall.hitbox):
+                if self.vy > 0: self.hitbox.bottom = wall.hitbox.top
+                elif self.vy < 0: self.hitbox.top = wall.hitbox.bottom
                 self.y = self.hitbox.centery - tilesize // 2
                 self.vy = 0
 
@@ -120,7 +235,7 @@ class Librarian(pygame.sprite.Sprite):
 
     def is_walkable(self, col, row):
         if 0 <= row < len(map_data) and 0 <= col < len(map_data[0]):
-            return map_data[row][col] in [0, 3, 4, 6, 7]
+            return map_data[row][col] in [0, 3, 6, 7, 8, 11, 12, 13]
         return False
 
     def get_valid_neighbors(self, col, row):
@@ -186,7 +301,7 @@ class Librarian(pygame.sprite.Sprite):
         for i in range(1, steps):
             check_point = start.lerp(end, i / steps)
             for wall in self.game.walls:
-                if wall.rect.collidepoint(check_point.x, check_point.y):
+                if wall.hitbox.collidepoint(check_point.x, check_point.y):
                     return False
         return True
 
@@ -308,21 +423,28 @@ class Librarian(pygame.sprite.Sprite):
 class Obstaculo(pygame.sprite.Sprite):
     def __init__(self, col, row, tile_type, letter_id=""):
         super().__init__()
+        self.col = col
+        self.row = row
         self.tile_type = tile_type
         self.letter_id = letter_id
         
         self.rect = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
+        self.hitbox = pygame.Rect(col * tilesize, row * tilesize, tilesize, tilesize)
         self.image = pygame.Surface((tilesize, tilesize), pygame.SRCALPHA)
 
-        # Se for estante do Easter Egg, desenha o contorno dourado e a letra
         if self.letter_id != "":
-            cor_dourada = (255, 215, 0)
-            pygame.draw.rect(self.image, cor_dourada, (0, 0, tilesize, tilesize), 2)
+            placa_rect = pygame.Rect(5, 6, tilesize - 10, tilesize - 12)
+            pygame.draw.rect(self.image, (32, 18, 8), placa_rect, border_radius=2)
+            pygame.draw.rect(self.image, (215, 175, 85), placa_rect, 1, border_radius=2)
+            for rx, ry in [(placa_rect.left + 2, placa_rect.top + 2),
+                           (placa_rect.right - 3, placa_rect.top + 2),
+                           (placa_rect.left + 2, placa_rect.bottom - 3),
+                           (placa_rect.right - 3, placa_rect.bottom - 3)]:
+                self.image.set_at((rx, ry), (245, 215, 120))
 
-            fonte = pygame.font.SysFont("Courier New", 18, bold=True)
-            texto_surf = fonte.render(self.letter_id, True, cor_dourada)
+            fonte = pygame.font.SysFont("Courier New", 14, bold=True)
+            texto_surf = fonte.render(self.letter_id, True, (250, 235, 185))
             texto_rect = texto_surf.get_rect(center=(tilesize // 2, tilesize // 2))
-            
             self.image.blit(texto_surf, texto_rect)
 
 class ItemColetavel(ObjetoCenario):
@@ -354,19 +476,31 @@ class QuadroSecreto(ObjetoCenario):
     def __init__(self, col, row):
         super().__init__(col, row, tilesize, tilesize)
         self.image.fill(yellow)
-        pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 3)
-        pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
-        pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
+        pygame.draw.rect(self.image, purple, (2, 2, tilesize - 4, tilesize - 4), 2)
+
+        try:
+            img_carregada = pygame.image.load("imagens/Guardião_da_Sabedoria.png").convert_alpha()
+            mini = pygame.transform.scale(img_carregada, (tilesize - 8, tilesize - 8))
+            self.image.blit(mini, (4, 4))
+        except (pygame.error, FileNotFoundError):
+            pygame.draw.rect(self.image, dark_gray, (8, 8, tilesize - 16, tilesize - 16))
+            pygame.draw.circle(self.image, white, (tilesize // 2, tilesize // 2 - 2), 5)
 
 class BibliotecaGerador:
     def __init__(self, tilesize):
         self.tilesize = tilesize
         self.COR_CHAO = (101, 67, 33)       
         self.COR_LINHA_CHAO = (80, 50, 20)
-        self.COR_ESTANTE = (60, 35, 15)    
-        self.COR_LIVROS = [(180, 40, 40), (40, 100, 180), (40, 140, 60), (200, 170, 50)]
-        self.COR_PAREDE = (80, 80, 90)        
-        self.COR_PAREDE_BORDA = (50, 50, 60)  
+        self.COR_ESTANTE = (58, 32, 14)    
+        self.COR_LIVROS = [
+            (175, 42, 42),
+            (42, 95, 165),
+            (42, 130, 62),
+            (195, 155, 48),
+            (115, 55, 140),
+            (150, 82, 38),
+            (55, 130, 140),
+        ]
 
     def criar_textura_chao(self):
         surface = pygame.Surface((self.tilesize, self.tilesize))
@@ -375,62 +509,327 @@ class BibliotecaGerador:
         pygame.draw.line(surface, self.COR_LINHA_CHAO, (0, self.tilesize//2), (self.tilesize, self.tilesize//2), 1)
         return surface
 
-    def criar_textura_parede(self):
+    def criar_textura_parede(self, grid, col, row):
+        """Parede clássica de biblioteca em mogno/boiserie com topo 2.5D, moldura e arandelas."""
         surface = pygame.Surface((self.tilesize, self.tilesize))
-        surface.fill(self.COR_PAREDE)
-        pygame.draw.rect(surface, self.COR_PAREDE_BORDA, (0, 0, self.tilesize, self.tilesize), 1)
+
+        top_wall = (row > 0 and grid[row - 1][col] in [2, 4, 9])
+        bot_wall = (row < len(grid) - 1 and grid[row + 1][col] in [2, 4, 9])
+        left_wall = (col > 0 and grid[row][col - 1] in [2, 4, 9])
+        right_wall = (col < len(grid[0]) - 1 and grid[row][col + 1] in [2, 4, 9])
+
+        if not bot_wall:
+            pygame.draw.rect(surface, (36, 20, 11), (0, 0, self.tilesize, 8))
+            pygame.draw.line(surface, (68, 40, 22), (0, 0), (self.tilesize, 0), 1)
+            pygame.draw.rect(surface, (96, 56, 26), (0, 8, self.tilesize, 3))
+            pygame.draw.line(surface, (140, 92, 45), (0, 8), (self.tilesize, 8), 1)
+
+            pygame.draw.rect(surface, (66, 36, 18), (0, 11, self.tilesize, self.tilesize - 16))
+
+            px0 = 0 if left_wall else 3
+            px1 = self.tilesize if right_wall else self.tilesize - 3
+            pygame.draw.rect(surface, (52, 27, 13), (px0 + 2, 13, max(2, px1 - px0 - 4), 11))
+            pygame.draw.rect(surface, (112, 72, 34), (px0 + 2, 13, max(2, px1 - px0 - 4), 11), 1)
+
+            if left_wall:
+                pygame.draw.line(surface, (46, 24, 11), (0, 11), (0, self.tilesize - 6), 1)
+                pygame.draw.line(surface, (86, 50, 25), (1, 11), (1, self.tilesize - 6), 1)
+
+            if left_wall and right_wall and (col % 6 == 4) and row not in [3, 9]:
+                halo = pygame.Surface((26, 22), pygame.SRCALPHA)
+                pygame.draw.circle(halo, (255, 215, 100, 55), (13, 11), 11)
+                surface.blit(halo, (self.tilesize // 2 - 13, 8))
+                cx = self.tilesize // 2
+                pygame.draw.rect(surface, (185, 145, 55), (cx - 2, 17, 4, 4))
+                pygame.draw.polygon(surface, (250, 225, 135), [(cx - 3, 17), (cx + 3, 17), (cx + 2, 13), (cx - 2, 13)])
+
+            pygame.draw.rect(surface, (42, 22, 10), (0, self.tilesize - 5, self.tilesize, 5))
+            pygame.draw.line(surface, (118, 76, 36), (0, self.tilesize - 5), (self.tilesize, self.tilesize - 5), 1)
+
+        else:
+            surface.fill((38, 21, 11))
+            pygame.draw.line(surface, (52, 30, 16), (0, self.tilesize // 2), (self.tilesize, self.tilesize // 2), 1)
+
+            if not top_wall:
+                pygame.draw.rect(surface, (74, 44, 24), (0, 0, self.tilesize, 3))
+                pygame.draw.line(surface, (108, 68, 36), (0, 0), (self.tilesize, 0), 1)
+            if not left_wall:
+                pygame.draw.rect(surface, (74, 44, 24), (0, 0, 3, self.tilesize))
+                pygame.draw.line(surface, (108, 68, 36), (0, 0), (0, self.tilesize), 1)
+            if not right_wall:
+                pygame.draw.rect(surface, (62, 35, 18), (self.tilesize - 3, 0, 3, self.tilesize))
+                pygame.draw.line(surface, (24, 12, 6), (self.tilesize - 1, 0), (self.tilesize - 1, self.tilesize), 1)
+
         return surface
 
-    def criar_textura_estante(self, letra=""):
+    def criar_textura_mesa(self, grid, col, row):
+        surface = self.criar_textura_chao()
+
+        top_mesa = (row > 0 and grid[row - 1][col] == 5)
+        bot_mesa = (row < len(grid) - 1 and grid[row + 1][col] == 5)
+        left_mesa = (col > 0 and grid[row][col - 1] == 5)
+        right_mesa = (col < len(grid[0]) - 1 and grid[row][col + 1] == 5)
+
+        if not top_mesa:
+            pygame.draw.rect(surface, (85, 45, 18), (7, 0, self.tilesize - 14, 6))
+            pygame.draw.rect(surface, (45, 22, 8), (7, 0, self.tilesize - 14, 3))
+        if not bot_mesa:
+            pygame.draw.rect(surface, (85, 45, 18), (7, self.tilesize - 6, self.tilesize - 14, 6))
+            pygame.draw.rect(surface, (45, 22, 8), (7, self.tilesize - 3, self.tilesize - 14, 3))
+
+        x0 = 0 if left_mesa else 3
+        x1 = self.tilesize if right_mesa else self.tilesize - 3
+        y0 = 0 if top_mesa else 5
+        y1 = self.tilesize if bot_mesa else self.tilesize - 5
+
+        pygame.draw.rect(surface, (150, 96, 44), (x0, y0, x1 - x0, y1 - y0))
+        pygame.draw.line(surface, (125, 76, 32), (x0, (y0 + y1) // 2), (x1, (y0 + y1) // 2), 1)
+
+        cor_borda = (75, 42, 16)
+        if not top_mesa:
+            pygame.draw.line(surface, cor_borda, (x0, y0), (x1 - 1, y0), 2)
+        if not bot_mesa:
+            pygame.draw.line(surface, cor_borda, (x0, y1 - 1), (x1 - 1, y1 - 1), 2)
+        if not left_mesa:
+            pygame.draw.line(surface, cor_borda, (x0, y0), (x0, y1 - 1), 2)
+        if not right_mesa:
+            pygame.draw.line(surface, cor_borda, (x1 - 1, y0), (x1 - 1, y1 - 1), 2)
+
+        padrao = (col + row * 2) % 4
+        if padrao == 0:
+            pygame.draw.rect(surface, (40, 70, 140), (9, 10, 14, 11))
+            pygame.draw.rect(surface, (245, 240, 225), (10, 11, 5, 9))
+            pygame.draw.rect(surface, (245, 240, 225), (17, 11, 5, 9))
+        elif padrao == 1:
+            halo = pygame.Surface((24, 24), pygame.SRCALPHA)
+            pygame.draw.circle(halo, (255, 225, 90, 95), (12, 12), 11)
+            surface.blit(halo, (4, 4))
+            pygame.draw.circle(surface, (50, 50, 55), (16, 16), 4)
+            pygame.draw.circle(surface, (245, 210, 70), (16, 16), 3)
+        elif padrao == 2:
+            pygame.draw.rect(surface, (240, 238, 230), (10, 9, 10, 13))
+            pygame.draw.line(surface, (100, 100, 120), (12, 12), (18, 12), 1)
+            pygame.draw.line(surface, (100, 100, 120), (12, 15), (17, 15), 1)
+            pygame.draw.line(surface, (180, 40, 40), (21, 10), (23, 20), 2)
+        else:
+            pygame.draw.rect(surface, (165, 45, 45), (9, 12, 12, 8))
+            pygame.draw.rect(surface, (45, 130, 70), (11, 9, 10, 7))
+
+        return surface
+
+    def criar_textura_escrivaninha_chefe(self, grid, col, row):
+        surface = self.criar_textura_chao()
+        top_mesa = (row > 0 and grid[row - 1][col] == 10)
+        bot_mesa = (row < len(grid) - 1 and grid[row + 1][col] == 10)
+
+        if not top_mesa and bot_mesa:
+            pygame.draw.circle(surface, (45, 20, 25), (24, 18), 6)
+            pygame.draw.rect(surface, (95, 25, 35), (25, 12, 5, 12), border_radius=2)
+
+        y0 = 0 if top_mesa else 4
+        y1 = self.tilesize if bot_mesa else self.tilesize - 4
+
+        pygame.draw.rect(surface, (92, 42, 22), (4, y0, 18, y1 - y0))
+        pygame.draw.rect(surface, (52, 22, 10), (4, y0, 18, y1 - y0), 2)
+
+        if not top_mesa:
+            halo = pygame.Surface((20, 20), pygame.SRCALPHA)
+            pygame.draw.circle(halo, (120, 255, 150, 75), (10, 10), 9)
+            surface.blit(halo, (3, 6))
+            pygame.draw.rect(surface, (30, 130, 75), (9, 11, 8, 5), border_radius=2)
+            pygame.draw.rect(surface, (170, 50, 50), (8, 20, 10, 7))
+        elif top_mesa and bot_mesa:
+            pygame.draw.rect(surface, (240, 235, 220), (7, 9, 12, 14))
+            pygame.draw.line(surface, (120, 110, 100), (13, 9), (13, 23), 1)
+        else:
+            pygame.draw.rect(surface, (235, 235, 230), (8, 8, 10, 11))
+            pygame.draw.circle(surface, (190, 35, 35), (13, 22), 3)
+
+        return surface
+
+    def criar_textura_porta(self):
         surface = pygame.Surface((self.tilesize, self.tilesize))
-        surface.fill(self.COR_ESTANTE)
-        
-        pygame.draw.rect(surface, (30, 15, 5), (0, 0, self.tilesize, 4))
-        pygame.draw.rect(surface, (30, 15, 5), (0, self.tilesize - 4, self.tilesize, 4))
-        
-        x = 4
-        i = 0
-        while x < self.tilesize - 6:
-            largura_livro = 4
-            cor = self.COR_LIVROS[i % len(self.COR_LIVROS)]
-            pygame.draw.rect(surface, cor, (x, 6, largura_livro, self.tilesize - 10))
-            x += largura_livro + 1
-            i += 1
+        surface.fill((45, 25, 10))
+        pygame.draw.rect(surface, (115, 65, 28), (3, 2, self.tilesize - 6, self.tilesize - 2))
+        pygame.draw.rect(surface, (75, 40, 15), (6, 5, self.tilesize - 12, self.tilesize - 8), 2)
+        pygame.draw.line(surface, (75, 40, 15), (self.tilesize // 2, 3), (self.tilesize // 2, self.tilesize - 2), 1)
+        pygame.draw.rect(surface, (50, 50, 55), (3, 7, 4, 3))
+        pygame.draw.rect(surface, (50, 50, 55), (3, self.tilesize - 10, 4, 3))
+        pygame.draw.circle(surface, (235, 195, 55), (self.tilesize - 8, self.tilesize // 2), 3)
+        pygame.draw.rect(surface, (25, 15, 5), (self.tilesize - 9, self.tilesize // 2 + 4, 2, 3))
+        return surface
+
+    def criar_textura_porta_aberta(self, para_fora=False):
+        if para_fora:
+            surface = pygame.Surface((self.tilesize, self.tilesize))
+            surface.fill((12, 14, 28))
+            pygame.draw.rect(surface, (85, 55, 25), (0, 0, 5, self.tilesize))
+            pygame.draw.rect(surface, (45, 25, 10), (0, 0, self.tilesize, 3))
+            pygame.draw.rect(surface, (45, 25, 10), (0, self.tilesize - 3, self.tilesize, 3))
+            pygame.draw.polygon(surface, (115, 65, 28), [(4, 3), (self.tilesize - 2, 0), (self.tilesize - 2, 8), (4, 10)])
+            pygame.draw.polygon(surface, (45, 25, 10), [(4, 3), (self.tilesize - 2, 0), (self.tilesize - 2, 8), (4, 10)], 1)
+            pygame.draw.circle(surface, (235, 195, 55), (self.tilesize - 6, 5), 2)
+        else:
+            surface = self.criar_textura_chao()
+            pygame.draw.rect(surface, (45, 25, 10), (0, 0, self.tilesize, 3))
+            pygame.draw.rect(surface, (45, 25, 10), (self.tilesize - 3, 0, 3, self.tilesize))
+            pygame.draw.polygon(surface, (115, 65, 28), [(0, 0), (8, 4), (8, self.tilesize - 2), (0, self.tilesize)])
+            pygame.draw.polygon(surface, (45, 25, 10), [(0, 0), (8, 4), (8, self.tilesize - 2), (0, self.tilesize)], 1)
+            pygame.draw.circle(surface, (235, 195, 55), (6, self.tilesize // 2), 2)
+        return surface
+
+    def criar_textura_estante(self, grid, col, row, letra=""):
+        """Estante conectada (auto-tiling) com topo moldurado, livros variados e objetos decorativos."""
+        surface = pygame.Surface((self.tilesize, self.tilesize))
+        surface.fill((34, 18, 7))
+
+        top_est = (row > 0 and grid[row - 1][col] == 1)
+        bot_est = (row < len(grid) - 1 and grid[row + 1][col] == 1)
+        left_est = (col > 0 and grid[row][col - 1] == 1)
+        right_est = (col < len(grid[0]) - 1 and grid[row][col + 1] == 1)
+
+        if not top_est:
+            pygame.draw.rect(surface, (92, 54, 24), (0, 0, self.tilesize, 6))
+            pygame.draw.line(surface, (128, 78, 38), (0, 1), (self.tilesize, 1), 1)
+            pygame.draw.line(surface, (45, 24, 9), (0, 5), (self.tilesize, 5), 1)
+            y_topo_nicho = 6
+        else:
+            pygame.draw.rect(surface, (68, 38, 15), (0, 0, self.tilesize, 3))
+            y_topo_nicho = 3
+
+        if not bot_est:
+            pygame.draw.rect(surface, (75, 42, 16), (0, self.tilesize - 5, self.tilesize, 5))
+            pygame.draw.line(surface, (110, 66, 28), (0, self.tilesize - 5), (self.tilesize, self.tilesize - 5), 1)
+            y_base_nicho = self.tilesize - 5
+        else:
+            pygame.draw.rect(surface, (68, 38, 15), (0, self.tilesize - 3, self.tilesize, 3))
+            y_base_nicho = self.tilesize - 3
+
+        x_ini = 0 if left_est else 3
+        x_fim = self.tilesize if right_est else self.tilesize - 3
+        if not left_est:
+            pygame.draw.rect(surface, (75, 42, 16), (0, 0, 3, self.tilesize))
+        if not right_est:
+            pygame.draw.rect(surface, (75, 42, 16), (self.tilesize - 3, 0, 3, self.tilesize))
+
+        rng = random.Random(col * 97 + row * 31)
+        tipo_nicho = rng.randint(0, 7)
+
+        if not letra and tipo_nicho == 0:
+            cx = (x_ini + x_fim) // 2
+            pygame.draw.rect(surface, (160, 120, 45), (cx - 4, y_base_nicho - 3, 8, 3))
+            pygame.draw.line(surface, (190, 150, 60), (cx, y_base_nicho - 3), (cx, y_base_nicho - 6), 2)
+            pygame.draw.circle(surface, (45, 115, 165), (cx, y_base_nicho - 11), 6)
+            pygame.draw.circle(surface, (70, 155, 85), (cx - 2, y_base_nicho - 12), 2)
+            pygame.draw.circle(surface, (70, 155, 85), (cx + 2, y_base_nicho - 9), 2)
+            pygame.draw.arc(surface, (210, 175, 75), (cx - 7, y_base_nicho - 18, 14, 14), -0.8, 2.2, 1)
+        elif not letra and tipo_nicho == 1:
+            cx = (x_ini + x_fim) // 2
+            pygame.draw.rect(surface, (155, 45, 45), (cx - 8, y_base_nicho - 4, 16, 4))
+            pygame.draw.rect(surface, (45, 95, 155), (cx - 7, y_base_nicho - 8, 14, 4))
+            pygame.draw.rect(surface, (235, 225, 195), (cx - 2, y_base_nicho - 13, 4, 5))
+            pygame.draw.circle(surface, (255, 210, 70), (cx, y_base_nicho - 15), 2)
+        else:
+            x = x_ini + 1
+            while x < x_fim - 3:
+                if rng.random() < 0.14:
+                    x += rng.randint(3, 5)
+                    continue
+
+                larg = rng.choice([3, 4, 4, 5])
+                if x + larg > x_fim:
+                    larg = x_fim - x
+                if larg < 2:
+                    break
+
+                alt_max = y_base_nicho - y_topo_nicho - 1
+                alt = rng.randint(max(8, alt_max - 5), alt_max)
+                y_livro = y_base_nicho - alt
+                cor = rng.choice(self.COR_LIVROS)
+
+                pygame.draw.rect(surface, cor, (x, y_livro, larg, alt))
+                cor_escura = (max(0, cor[0] - 45), max(0, cor[1] - 45), max(0, cor[2] - 45))
+                pygame.draw.line(surface, cor_escura, (x + larg - 1, y_livro), (x + larg - 1, y_base_nicho - 1), 1)
+
+                if rng.random() < 0.45 and alt > 10:
+                    pygame.draw.line(surface, (235, 200, 95), (x + 1, y_livro + 3), (x + larg - 2, y_livro + 3), 1)
+                    if rng.random() < 0.5:
+                        pygame.draw.line(surface, (235, 200, 95), (x + 1, y_base_nicho - 4), (x + larg - 2, y_base_nicho - 4), 1)
+
+                x += larg + 1
 
         if letra:
-            pygame.draw.rect(surface, (255, 215, 0), (0, 0, self.tilesize, self.tilesize), 2)
-            font = pygame.font.SysFont("Courier New", 18, bold=True)
-            txt = font.render(letra, True, (255, 215, 0))
-            surface.blit(txt, (self.tilesize//2 - txt.get_width()//2, self.tilesize//2 - txt.get_height()//2))
+            placa_rect = pygame.Rect(5, 6, self.tilesize - 10, self.tilesize - 12)
+            pygame.draw.rect(surface, (32, 18, 8), placa_rect, border_radius=2)
+            pygame.draw.rect(surface, (215, 175, 85), placa_rect, 1, border_radius=2)
+            for rx, ry in [(placa_rect.left + 2, placa_rect.top + 2),
+                           (placa_rect.right - 3, placa_rect.top + 2),
+                           (placa_rect.left + 2, placa_rect.bottom - 3),
+                           (placa_rect.right - 3, placa_rect.bottom - 3)]:
+                surface.set_at((rx, ry), (245, 215, 120))
+
+            font = pygame.font.SysFont("Courier New", 14, bold=True)
+            txt = font.render(letra, True, (250, 235, 185))
+            surface.blit(txt, (self.tilesize // 2 - txt.get_width() // 2, self.tilesize // 2 - txt.get_height() // 2))
 
         return surface
 
-    def gerar_cenario_completo(self, map_data, width, height):
+    def desenhar_tapete(self, cenario, col_ini, row_ini, largura_tiles, altura_tiles, cor_fundo, cor_borda):
+        rect = pygame.Rect(
+            col_ini * self.tilesize + 4,
+            row_ini * self.tilesize + 4,
+            largura_tiles * self.tilesize - 8,
+            altura_tiles * self.tilesize - 8
+        )
+        pygame.draw.rect(cenario, cor_fundo, rect, border_radius=4)
+        pygame.draw.rect(cenario, cor_borda, rect, 2, border_radius=4)
+        pygame.draw.rect(cenario, cor_borda, rect.inflate(-8, -8), 1)
+
+    def gerar_cenario_completo(self, map_data, width, height, secoes=None):
         cenario = pygame.Surface((width, height))
+        if secoes is None:
+            secoes = {}
         
         tile_chao = self.criar_textura_chao()
-        tile_parede = self.criar_textura_parede()
-        tile_estante_padrao = self.criar_textura_estante()
+        tile_porta = self.criar_textura_porta()
 
+        # 1. Piso base
+        for row_idx, row in enumerate(map_data):
+            for col_idx, tile in enumerate(row):
+                cenario.blit(tile_chao, (col_idx * self.tilesize, row_idx * self.tilesize))
+
+        # 2. Tapetes e Passadeiras nos corredores
+        self.desenhar_tapete(cenario, 2, 4, 21, 1, (95, 38, 38), (185, 145, 70))
+        self.desenhar_tapete(cenario, 2, 13, 21, 2, (95, 38, 38), (185, 145, 70))
+        self.desenhar_tapete(cenario, 25, 10, 3, 4, (115, 32, 38), (205, 165, 70))
+        self.desenhar_tapete(cenario, 25, 1, 4, 2, (58, 32, 95), (215, 180, 75))
+        self.desenhar_tapete(cenario, 25, 16, 4, 3, (35, 75, 65), (180, 155, 85))
+
+        # 3. Sombras 2.5D projetadas no piso abaixo de paredes e estantes
+        sombra = pygame.Surface((self.tilesize, 7), pygame.SRCALPHA)
+        sombra.fill((15, 8, 2, 95))
+        for row_idx in range(len(map_data) - 1):
+            for col_idx in range(len(map_data[0])):
+                if map_data[row_idx][col_idx] in [1, 2] and map_data[row_idx + 1][col_idx] not in [1, 2]:
+                    cenario.blit(sombra, (col_idx * self.tilesize, (row_idx + 1) * self.tilesize))
+
+        # 4. Paredes, Estantes, Mesas e Portas
         for row_idx, row in enumerate(map_data):
             for col_idx, tile in enumerate(row):
                 x = col_idx * self.tilesize
                 y = row_idx * self.tilesize
-                cenario.blit(tile_chao, (x, y))
 
                 if tile == 2:
-                    cenario.blit(tile_parede, (x, y))
-                elif tile in [1, 9]:
-                    letter = ""
-                    if col_idx == 12 and row_idx == 11: letter = "I"
-                    elif col_idx == 26 and row_idx == 7: letter = "F"
-                    elif col_idx == 2 and row_idx == 2: letter = "R"
-                    elif col_idx == 16 and row_idx == 21: letter = "N"
-                    
-                    if letter:
-                        tile_esp = self.criar_textura_estante(letter)
-                        cenario.blit(tile_esp, (x, y))
-                    else:
-                        cenario.blit(tile_estante_padrao, (x, y))
+                    cenario.blit(self.criar_textura_parede(map_data, col_idx, row_idx), (x, y))
+                elif tile == 1:
+                    letter = secoes.get((col_idx, row_idx), "")
+                    tile_est = self.criar_textura_estante(map_data, col_idx, row_idx, letter)
+                    cenario.blit(tile_est, (x, y))
+                elif tile == 5:
+                    cenario.blit(self.criar_textura_mesa(map_data, col_idx, row_idx), (x, y))
+                elif tile == 10:
+                    cenario.blit(self.criar_textura_escrivaninha_chefe(map_data, col_idx, row_idx), (x, y))
+                elif tile in [4, 9]:
+                    cenario.blit(tile_porta, (x, y))
 
         return cenario
